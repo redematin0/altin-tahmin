@@ -170,6 +170,13 @@ code{background:color-mix(in srgb,var(--gold) 15%,transparent);padding:1px 5px;b
   </section>
 
   <section id="ayar" hidden>
+    <h2>Dükkan fiyatı</h2>
+    <form class="card" id="dkForm">
+      <p class="why" style="margin:0">Uygulama İstanbul Kapalıçarşı fiyatını gösterir. Kendi kuyumcunda gördüğün gram fiyatını yaz; tüm fiyatlar, tahminler ve portföy ona göre ayarlanır.</p>
+      <div class="form" style="margin-top:12px"><label class="f">Dükkandaki gram fiyatı (₺)<input id="dkVal" type="number" step="0.01" min="0" inputmode="decimal"></label></div>
+      <div class="btns" style="margin-top:12px"><button type="submit">Kaydet</button><button type="button" id="dkReset">Kapalıçarşı'ya dön</button></div>
+      <p class="note" id="dkInfo" style="margin:10px 0 0"></p>
+    </form>
     <h2>Telegram bildirimleri</h2>
     <div class="card">
       <p class="why" style="margin:0">Her sabah özet, %2'yi aşan hareketlerde uyarı ve kendi fiyat alarmların için:</p>
@@ -202,7 +209,7 @@ const AY = ['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran','Temmuz','Ağustos
 const HZ = [['1', '24 saat'], ['5', '1 hafta'], ['21', '1 ay']];
 const askUrl = p => 'https://claude.ai/new?q=' + encodeURIComponent(p);
 const askLink = (p, label) => `<a class="ask" href="${askUrl(p)}" target="_blank" rel="noopener" data-p="${esc(p)}">${label}</a>`;
-let F = null, H = null, NEWS = null, CAL = null, LOG = [], RANGE = 90, LIVE = null;
+let F = null, H = null, NEWS = null, CAL = null, LOG = [], RANGE = 90, LIVE = null, RATIO = 1;
 
 /* ---------- VERİ ---------- */
 async function j(name){ const r = await fetch('data/' + name + '?t=' + Date.now(), {cache: 'no-store'}); if (!r.ok) throw new Error(name + ' ' + r.status); return r.json() }
@@ -225,6 +232,7 @@ async function load(){
   try{
     [F, H] = await Promise.all([j('forecast.json'), j('history.json')]);
     [NEWS, CAL, LOG] = await Promise.all([j('news.json').catch(() => ({})), j('calendar.json').catch(() => ({events: []})), j('log.json').catch(() => [])]);
+    F.rawPrice = F.price; RATIO = store.get('dukkan', null)?.ratio || 1; F.price = F.rawPrice * RATIO;
     LIVE = null; renderAll(); liveTick();
   }catch(e){
     $('status').innerHTML = `<div class="card err" style="margin-top:16px"><b>Veri henüz hazır değil.</b> Sunucu ilk kez çalışıyorsa birkaç dakika sonra tekrar dene. Uygulamayı <code>redematin0.github.io/altin-tahmin</code> adresinden açtığından emin ol.<small style="display:block;margin-top:6px">${esc(e.message)}</small></div>`;
@@ -233,10 +241,10 @@ async function load(){
 }
 
 /* ---------- BAŞLIK + GRAFİK ---------- */
-const prem = () => 1 + (F.premium || 0);
+const prem = () => (1 + (F.premium || 0)) * RATIO;
 function renderHead(){
   const p = LIVE || F.price;
-  $('ptitle').textContent = F.premium != null ? 'Gram altın · kuyumcu satış' : 'Gram altın (TL)';
+  $('ptitle').textContent = RATIO !== 1 ? 'Gram altın · dükkan fiyatı' : F.premium != null ? 'Gram altın · Kapalıçarşı satış' : 'Gram altın (TL)';
   $('price').textContent = fmt(p, 2) + ' ₺';
   $('chg24').innerHTML = (LIVE ? '<span class="live" title="canlı"></span>' : '') + 'Dünden beri ' + pct(F.chg1d * 1 + (LIVE ? LIVE / F.price - 1 : 0), 2);
   $('ons').textContent = 'Ons ' + fmt(F.ons, 0) + ' $';
@@ -329,8 +337,8 @@ $('pfType').innerHTML = Object.entries(PF_TYPES).map(([k, v]) => `<option value=
 function unitValue(type){
   // Kuyumcunun alış fiyatı (sana ödeyeceği); yoksa has altın karşılığından tahmin
   const k = F.kapali?.fiyat || {}, live = (LIVE || F.price) / F.price;
-  if (k[type]) return k[type].al * live;
-  const gramAl = k.gram ? k.gram.al * live : (LIVE || F.price) * 0.99;
+  if (k[type]) return k[type].al * live * RATIO;
+  const gramAl = k.gram ? k.gram.al * live * RATIO : (LIVE || F.price) * 0.99;
   return gramAl * PF_TYPES[type][1];
 }
 function renderPortfolio(){
@@ -434,7 +442,20 @@ function renderSys(){
   $('sys').textContent = `Son sunucu çalışması: ${new Date(F.time).toLocaleString(TR)}. Fiyat geçmişi ${H.dates.length} işlem günü, haber hafızası ${Object.keys(NEWS.days || {}).length} gün, tahmin günlüğü ${LOG.length} kayıt. Kuyumcu farkı: ${F.premium == null ? 'bilinmiyor' : pct(F.premium, 2)}.`;
   $('logs').textContent = (F.logs || []).join('\n');
 }
-function renderAll(){ renderHead(); drawChart(); renderForecasts(); renderEvents(); renderNews(); renderKapali(); renderAskToday(); renderPortfolio(); renderMonths(); renderKarne(); renderSys() }
+function renderAll(){ renderHead(); drawChart(); renderForecasts(); renderEvents(); renderNews(); renderKapali(); renderAskToday(); renderPortfolio(); renderMonths(); renderKarne(); renderSys(); renderDukkan() }
+
+/* ---------- DÜKKAN FİYATI ---------- */
+function renderDukkan(){
+  const c = store.get('dukkan', null);
+  $('dkInfo').textContent = c ? `${new Date(c.date).toLocaleDateString(TR)} tarihinde ${fmt(c.v, 2)} ₺ girildi; dükkanın Kapalıçarşı'dan ${pct(c.ratio - 1, 2)} farklı. Fark zamanla değişebilir, arada bir güncelle.` : 'Şu an Kapalıçarşı fiyatı gösteriliyor.';
+}
+$('dkForm').addEventListener('submit', e => {
+  e.preventDefault(); const v = parseFloat($('dkVal').value); if (!(v > 0) || !F) return;
+  const rawNow = LIVE ? LIVE / RATIO : F.rawPrice, ratio = v / rawNow;
+  if (ratio < 0.9 || ratio > 1.1){ $('dkInfo').textContent = 'Bu fiyat Kapalıçarşı\'dan %10\'dan fazla farklı; gram (24 ayar) fiyatını girdiğinden emin ol.'; return }
+  store.set('dukkan', {ratio, v, date: Date.now()}); $('dkVal').value = ''; load();
+});
+$('dkReset').addEventListener('click', () => { try{ localStorage.removeItem('alt_dukkan') }catch(e){} load() });
 
 /* ---------- OLAYLAR ---------- */
 $('refresh').addEventListener('click', load);
