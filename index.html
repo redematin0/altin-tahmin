@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#c9a227">
+<title>Altın Tahmin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+/* VOICE: sakin, net, bir piyasa ekranı gibi; belirsizlik açıkça gösterilir
+   IDEA: kuyumcu vitrinindeki fiyat panosu + hava durumu gibi olasılık kartları + aylık defter
+   PICTURE: büyük gram fiyatı ve fiyat grafiği; tahmin yelpazesi çubukları; ons/kur ayrışım çubukları
+   COLOUR and TYPE: altın sarısı #c9a227 baskın, mürekkep #1a1508, yükseliş yeşil, düşüş kırmızı; Sora
+   LAYOUT: tek sütun, telefon öncelikli; sekmeler: Bugün, Aylar, Karne, Ayarlar */
+:root{color-scheme:light dark;--bg:light-dark(#fbfaf6,#14110a);--card:light-dark(#ffffff,#1f1b12);--ink:light-dark(#1a1508,#f3ecd8);--mut:light-dark(#6b6352,#a99f86);--line:light-dark(#e8e2d2,#2e2919);--gold:#c9a227;--gold2:light-dark(#8a6b0a,#e3c35a);--up:light-dark(#0b7a55,#3cc38f);--dn:light-dark(#c0392b,#ff6b5b);--kur:light-dark(#5b6b8a,#9fb0d4)}
+:root[data-theme=light]{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}
+*{box-sizing:border-box;min-width:0}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 Sora,system-ui,sans-serif;overflow-x:clip}
+.wrap{max-width:720px;margin:0 auto;padding:0 16px 40px}
+header{background:var(--gold);color:#1a1508;padding:18px 16px 14px}
+header .wrap{padding-bottom:0}
+.top{display:flex;justify-content:space-between;align-items:center;gap:12px}
+.top h1{font-size:17px;margin:0;font-weight:600}
+button{font:inherit;font-size:15px;min-height:44px;padding:0 16px;border-radius:12px;border:1px solid var(--line);background:var(--card);color:var(--ink);cursor:pointer}
+button:focus-visible,input:focus-visible,summary:focus-visible{outline:3px solid var(--gold2);outline-offset:2px}
+button:disabled{opacity:.6}
+header button{background:#1a1508;color:#f3e3a8;border:0}
+.big{font-size:clamp(40px,12vw,56px);font-weight:700;line-height:1.05;margin:10px 0 2px;white-space:nowrap}
+.sub{font-size:14px;display:flex;flex-wrap:wrap;gap:4px 16px}
+.chg{font-weight:600}
+.fig{position:relative;height:190px;margin:12px 0 4px}
+.fig svg{position:absolute;inset:0;width:100%;height:100%}
+.seg{display:flex;gap:6px;margin-top:6px;flex-wrap:wrap}
+.seg button{min-height:36px;font-size:13px;padding:0 12px;background:transparent;border:1px solid #1a150855;color:#1a1508}
+.seg button.on{background:#1a1508;color:#f3e3a8}
+nav{position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:1px solid var(--line)}
+nav .wrap{display:flex;gap:4px;padding-bottom:0;overflow-x:auto}
+nav button{border:0;background:none;border-radius:0;border-bottom:3px solid transparent;flex:none;color:var(--mut);font-weight:600}
+nav button.on{color:var(--ink);border-bottom-color:var(--gold)}
+section[hidden]{display:none}
+h2{font-size:22px;line-height:1.15;margin:24px 0 4px}
+h3{font-size:17px;margin:0}
+.note{font-size:13px;color:var(--mut);margin:0 0 12px}
+.cards{display:grid;gap:12px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px}
+.row{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.pct{font-size:26px;font-weight:700;white-space:nowrap}
+.prob{font-size:14px;color:var(--mut)}
+.tag{display:inline-block;font-size:12px;padding:2px 8px;border-radius:99px;background:color-mix(in srgb,var(--gold) 22%,transparent);color:var(--gold2);font-weight:600}
+.bar{position:relative;height:26px;margin:12px 0 4px;border-radius:8px;background:var(--line)}
+.bar .rng{position:absolute;top:0;bottom:0;border-radius:8px;background:color-mix(in srgb,var(--gold) 45%,transparent)}
+.bar .med{position:absolute;top:-4px;bottom:-4px;width:3px;background:var(--ink);border-radius:2px}
+.bar .zero{position:absolute;top:0;bottom:0;width:1px;background:var(--mut)}
+.lbl{display:flex;justify-content:space-between;font-size:13px;color:var(--mut);white-space:nowrap;gap:8px}
+.up{color:var(--up)}.dn{color:var(--dn)}
+.meter{height:10px;border-radius:5px;background:linear-gradient(90deg,var(--dn),var(--line) 50%,var(--up));position:relative;margin:10px 0 6px}
+.meter i{position:absolute;top:-5px;width:4px;height:20px;background:var(--ink);border-radius:2px;transform:translateX(-2px)}
+.news{list-style:none;padding:0;margin:0}
+.news li{padding:12px 0;border-top:1px solid var(--line);display:grid;grid-template-columns:12px 1fr;gap:10px}
+.news a{color:var(--ink);text-decoration:none;font-size:15px}
+.news small{display:block;color:var(--mut);font-size:13px;margin-top:2px}
+.dot{width:10px;height:10px;border-radius:50%;margin-top:7px;background:var(--mut)}
+.dot.p{background:var(--up)}.dot.n{background:var(--dn)}
+.dec{display:grid;grid-template-columns:44px 1fr 64px;gap:4px 8px;align-items:center;font-size:13px;margin-top:10px}
+.dec .track{position:relative;height:12px;background:var(--line);border-radius:6px}
+.dec .track b{position:absolute;top:0;bottom:0;border-radius:6px}
+.dec .track .mid{position:absolute;left:50%;top:-2px;bottom:-2px;width:1px;background:var(--mut)}
+.dec span:last-child,.dec .v{text-align:right;white-space:nowrap}
+.why{font-size:14px;margin:10px 0 0}
+.ai{font-size:14px;margin-top:10px;padding:10px 12px;border-radius:10px;background:color-mix(in srgb,var(--gold) 12%,transparent);white-space:pre-wrap}
+.ask{display:inline-flex;align-items:center;min-height:44px;padding:0 16px;border-radius:12px;background:var(--ink);color:var(--bg);text-decoration:none;font-weight:600;font-size:14px}
+.mini{min-height:36px;font-size:13px;padding:0 12px;margin-top:10px}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{padding:8px 4px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+th:first-child,td:first-child{text-align:left}
+th{font-weight:600;color:var(--mut);font-size:13px}
+.scroll{overflow-x:auto}
+.err{background:color-mix(in srgb,var(--dn) 12%,var(--card));border-color:var(--dn)}
+.fine{font-size:13px;color:var(--mut);margin-top:24px}
+label.f{display:grid;gap:4px;margin:12px 0;font-size:14px}
+input[type=number],input[type=password]{font:inherit;font-size:16px;min-height:44px;width:100%;max-width:340px;padding:0 10px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--ink)}
+.btns{display:flex;flex-wrap:wrap;gap:8px}
+.spin{animation:sp 1s linear infinite;display:inline-block}@keyframes sp{to{transform:rotate(360deg)}}
+@media(prefers-reduced-motion:reduce){.spin{animation:none}}
+</style>
+</head>
+<body>
+<header><div class="wrap">
+  <div class="top"><h1>Gram altın (TL)</h1><button id="refresh" type="button">Yenile</button></div>
+  <div class="big" id="price">—</div>
+  <div class="sub"><span class="chg" id="chg24">Yükleniyor…</span><span id="ons"></span><span id="kur"></span><span id="ceyrek"></span></div>
+  <div class="fig"><svg id="chart" role="img" aria-label="Gram altın fiyat grafiği"></svg></div>
+  <div class="seg" id="range"><button type="button" data-d="30">1 ay</button><button type="button" data-d="90">3 ay</button><button type="button" data-d="365" class="on">1 yıl</button><button type="button" data-d="1000">Tümü</button></div>
+  <div class="note" style="color:#1a1508aa;margin:8px 0 0" id="stamp"></div>
+</div></header>
+<nav><div class="wrap" id="tabs"><button type="button" data-t="bugun" class="on">Bugün</button><button type="button" data-t="aylar">Aylar</button><button type="button" data-t="karne">Karne</button><button type="button" data-t="ayar">Ayarlar</button></div></nav>
+
+<main class="wrap">
+  <div id="status"></div>
+
+  <section id="bugun">
+    <h2>Tahminler</h2>
+    <p class="note">Çubuk, %80 olasılıkla beklenen aralık. Siyah çizgi en olası sonuç. Her süre için geçmişte en iyi tutan yöntem otomatik seçilir.</p>
+    <div class="cards" id="fc"></div>
+    <div id="askToday" style="margin-top:12px"></div>
+    <h2>Haber havası</h2>
+    <p class="note" id="newsNote">Başlıklar altın için olumlu ya da olumsuz diye puanlanır ve her gün bu telefona kaydedilir.</p>
+    <div class="card">
+      <div class="lbl"><span>Olumsuz</span><span id="newsScore">—</span><span>Olumlu</span></div>
+      <div class="meter"><i id="needle" style="left:50%"></i></div>
+      <ul class="news" id="news"></ul>
+    </div>
+  </section>
+
+  <section id="aylar" hidden>
+    <h2>Geçmiş aylar: neden arttı, neden azaldı?</h2>
+    <p class="note">Gram altın = ons fiyatı × dolar kuru. Her ayın değişimi bu iki kaynağa ayrılır. O ay kaydedilmiş haberler ve en sert günler de gösterilir.</p>
+    <div class="cards" id="months"></div>
+  </section>
+
+  <section id="karne" hidden>
+    <h2>Hangi yöntem ne kadar tutuyor?</h2>
+    <p class="note">Her yöntem son bir yıla geri götürülüp, sonrasını görmeden tahmin yaptırıldı. Hata puanı düşük olan kazanır ve o süre için kullanılır.</p>
+    <div class="card scroll"><table id="bt"><thead><tr><th>Süre / yöntem</th><th>Hata</th><th>Yön</th><th>Aralık</th></tr></thead><tbody><tr><td colspan="4">Hesaplanıyor…</td></tr></tbody></table></div>
+    <p class="note" style="margin-top:8px">Hata: düşük olan daha iyi. Yön: yönü doğru bilme oranı. Aralık: gerçek fiyatın %80 aralığa düşme oranı (ideali %80). Karşılaştırma: "hep yukarı" deseydin yön isabetin <span id="naive">—</span> olurdu.</p>
+    <h2>Öğrenilenler</h2>
+    <div class="card" id="learn"></div>
+    <h2>Tahmin günlüğüm</h2>
+    <p class="note">Her gün yapılan tahminler kaydedilir, süresi dolunca gerçekleşenle karşılaştırılır.</p>
+    <div class="card scroll"><table id="log"><thead><tr><th>Tarih</th><th>Süre</th><th>Tahmin</th><th>Gerçek</th><th>Sonuç</th></tr></thead><tbody></tbody></table></div>
+  </section>
+
+  <section id="ayar" hidden>
+    <h2>Ayarlar</h2>
+    <div class="card">
+      <label class="f">Kuyumcu farkı (%) — kuyumcu hesaplanan fiyattan %1,5 pahalıysa 1.5 yaz
+        <input id="prem" type="number" step="0.1" inputmode="decimal"></label>
+      <label class="f">Claude API anahtarı (isteğe bağlı, gerekmez) — "Claude'da sor" butonları anahtarsız çalışır; anahtar yalnızca haberlerin otomatik puanlanması içindir
+        <input id="key" type="password" autocomplete="off" placeholder="sk-ant-…"></label>
+      <p class="note">Anahtar yalnızca bu telefonda saklanır ve sadece Anthropic'e gönderilir. console.anthropic.com adresinden alınır, kullanım ücretlidir ama çok düşüktür.</p>
+    </div>
+    <h2>Hafıza</h2>
+    <div class="card">
+      <p class="note" id="memInfo"></p>
+      <div class="btns"><button type="button" id="exp">Yedeği indir</button><label class="mini" style="display:inline-flex;align-items:center;border:1px solid var(--line);border-radius:12px;padding:0 16px;min-height:44px;margin:0;cursor:pointer">Yedeği yükle<input id="imp" type="file" accept=".json,application/json" hidden></label></div>
+      <p class="note" style="margin-top:10px">Hafıza tarayıcıda tutulur. Tarayıcı verilerini silersen gider, ara sıra yedek al.</p>
+    </div>
+  </section>
+
+  <p class="fine">Veri: Binance PAXG/USDT (1 ons altına bağlı token) × USDT/TRY ÷ 31,1035; kuyumcu fiyatına çok yakın ama aynısı değil. Haberler: Google Haberler (rss2json). İstatistik aracıdır, yatırım tavsiyesi değildir.</p>
+</main>
+
+<script>
+{
+const OZ = 31.1035, TR = 'tr-TR';
+const $ = id => document.getElementById(id);
+const fmt = (v, d = 2) => v.toLocaleString(TR, {minimumFractionDigits: d, maximumFractionDigits: d});
+const pct = (v, d = 1) => (v >= 0 ? '+' : '−') + fmt(Math.abs(v * 100), d) + '%';
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const dayKey = t => new Date(t).toISOString().slice(0, 10);
+const KEYS = ['prem', 'key', 'log', 'newsHist', 'aiScores', 'aiMonths'];
+const store = {get(k, def){try{const v = localStorage.getItem('alt_' + k); return v == null ? def : JSON.parse(v)}catch(e){return def}}, set(k, v){try{localStorage.setItem('alt_' + k, JSON.stringify(v))}catch(e){}}};
+
+/* ---------- VERİ ---------- */
+const HOSTS = ['https://data-api.binance.vision', 'https://api.binance.com'];
+async function getJSON(path){
+  let last;
+  for (const h of HOSTS){ try{ const r = await fetch(h + path); if (!r.ok) throw new Error(path + ' ' + r.status); return await r.json() }catch(e){ last = e } }
+  throw last;
+}
+const klines = async sym => (await getJSON(`/api/v3/klines?symbol=${sym}&interval=1d&limit=1000`)).map(k => ({t: k[0], c: +k[4]}));
+const ticker = async sym => { try{ return +(await getJSON(`/api/v3/ticker/price?symbol=${sym}`)).price }catch(e){ return null } };
+function join(a, b){ const m = new Map(b.map(x => [dayKey(x.t), x.c])); return a.filter(x => m.has(dayKey(x.t))).map(x => ({t: x.t, ons: x.c, kur: m.get(dayKey(x.t))})) }
+async function binanceData(){
+  const [o, k] = await Promise.all([klines('PAXGUSDT'), klines('USDTTRY')]);
+  const d = join(o, k);
+  const [lo, lk] = await Promise.all([ticker('PAXGUSDT'), ticker('USDTTRY')]);
+  if (lo && lk){ d[d.length - 1].ons = lo; d[d.length - 1].kur = lk }
+  return d;
+}
+async function geckoData(){
+  const g = async c => { const r = await fetch(`https://api.coingecko.com/api/v3/coins/pax-gold/market_chart?vs_currency=${c}&days=365&interval=daily`); if (!r.ok) throw new Error('CoinGecko ' + r.status); return (await r.json()).prices.map(p => ({t: p[0], c: p[1]})) };
+  const [u, t] = await Promise.all([g('usd'), g('try')]);
+  const tm = new Map(t.map(x => [dayKey(x.t), x.c])), seen = new Set(), d = [];
+  for (const x of u){ const k = dayKey(x.t); if (tm.has(k) && !seen.has(k)){ seen.add(k); d.push({t: x.t, ons: x.c, kur: tm.get(k) / x.c}) } else if (tm.has(k) && seen.has(k)){ d[d.length - 1] = {t: x.t, ons: x.c, kur: tm.get(k) / x.c} } }
+  return d;
+}
+let SOURCE = '';
+async function getData(){
+  const errs = [];
+  try{ const d = await binanceData(); if (d.length >= 300){ SOURCE = 'Binance'; return d } errs.push('Binance: az veri') }catch(e){ errs.push('Binance: ' + e.message) }
+  try{ const d = await geckoData(); if (d.length >= 300){ SOURCE = 'CoinGecko'; return d } errs.push('CoinGecko: az veri') }catch(e){ errs.push('CoinGecko: ' + e.message) }
+  throw new Error(errs.join(' · '));
+}
+
+/* ---------- CLAUDE (isteğe bağlı) ---------- */
+async function claude(prompt, maxTokens = 500){
+  const key = store.get('key', ''); if (!key) throw new Error('API anahtarı yok');
+  const r = await fetch('https://api.anthropic.com/v1/messages', {method: 'POST', headers: {'x-api-key': key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json', 'anthropic-dangerous-direct-browser-access': 'true'},
+    body: JSON.stringify({model: 'claude-haiku-5-5', max_tokens: maxTokens, messages: [{role: 'user', content: prompt}]})});
+  const j = await r.json(); if (!r.ok) throw new Error(j.error?.message || r.status);
+  return j.content.map(c => c.text || '').join('');
+}
+
+/* ---------- HABER ---------- */
+const FEEDS = [
+  'https://news.google.com/rss/search?q=alt%C4%B1n+fiyatlar%C4%B1&hl=tr&gl=TR&ceid=TR:tr',
+  'https://news.google.com/rss/search?q=ons+alt%C4%B1n+Fed&hl=tr&gl=TR&ceid=TR:tr',
+  'https://news.google.com/rss/search?q=dolar+TL+kur&hl=tr&gl=TR&ceid=TR:tr',
+  'https://news.google.com/rss/search?q=gold+price&hl=en-US&gl=US&ceid=US:en'
+];
+const POS = ['rekor','yüksel','yükseliş','artış','arttı','tırman','zirve','faiz indirim','indirime','güvenli liman','jeopolitik','gerilim','savaş','saldırı','belirsizlik','dolar zayıf','zayıf dolar','merkez bankaları alım','talep art','rate cut','cuts','dovish','surge','soar','rally','record','jump','climb','safe haven','tension','war','attack','uncertainty','weak dollar','central bank buying','gains','rises','higher'];
+const NEG = ['düş','düşüş','geriledi','gerile','kayıp','değer kaybı','faiz artır','şahin','dolar güçlen','güçlü dolar','kâr satış','kar satış','ateşkes','barış','sakinleş','rate hike','hawkish','slump','fall','falls','drop','slide','tumble','strong dollar','profit-taking','profit taking','ceasefire','peace','lower','loses','retreat'];
+function scoreTitle(t){
+  const s = t.toLocaleLowerCase(TR); let p = 0, n = 0;
+  for (const w of POS) if (s.includes(w)) p++;
+  for (const w of NEG) if (s.includes(w)) n++;
+  return p + n ? (p - n) / (p + n) : 0;
+}
+async function aiScore(items){
+  const cache = store.get('aiScores', {}), todo = items.filter(x => !(x.title in cache)).slice(0, 30);
+  if (todo.length && store.get('key', '')){
+    try{
+      const txt = await claude('Aşağıdaki haber başlıklarının her birini, gram altının TL fiyatı için önümüzdeki günlerdeki etkisine göre -1 (çok olumsuz) ile +1 (çok olumlu) arasında puanla. Ons altını, doları ve TL kurunu etkileyen gelişmeleri dikkate al. Yalnızca sayılardan oluşan bir JSON dizisi döndür, başka hiçbir şey yazma.\n' + todo.map((x, i) => (i + 1) + '. ' + x.title).join('\n'), 300);
+      const arr = JSON.parse(txt.slice(txt.indexOf('['), txt.lastIndexOf(']') + 1));
+      todo.forEach((x, i) => { if (typeof arr[i] === 'number') cache[x.title] = Math.max(-1, Math.min(1, arr[i])) });
+      const ks = Object.keys(cache); if (ks.length > 600) for (const k of ks.slice(0, ks.length - 600)) delete cache[k];
+      store.set('aiScores', cache);
+    }catch(e){ console.log('AI puanlama', e) }
+  }
+  let ai = false;
+  for (const x of items) if (x.title in cache){ x.s = cache[x.title]; ai = true }
+  return ai;
+}
+async function loadNews(){
+  const out = [], seen = new Set();
+  await Promise.all(FEEDS.map(async f => {
+    try{
+      const j = await (await fetch('https://api.rss2json.com/v1/api.json?rss_url=' + encodeURIComponent(f))).json();
+      for (const it of (j.items || [])){
+        const title = (it.title || '').replace(/\s+-\s+[^-]+$/, '').trim();
+        const src = (it.title || '').match(/-\s+([^-]+)$/)?.[1] || it.author || '';
+        const key = title.toLowerCase().slice(0, 60);
+        if (!title || seen.has(key)) continue; seen.add(key);
+        const time = Date.parse((it.pubDate || '').replace(' ', 'T') + 'Z') || Date.now();
+        out.push({title, src, link: it.link, time, s: scoreTitle(title)});
+      }
+    }catch(e){}
+  }));
+  out.sort((a, b) => b.time - a.time);
+  const ai = await aiScore(out);
+  // günlük hafızaya yaz
+  const hist = store.get('newsHist', {});
+  for (const x of out){
+    const d = dayKey(x.time), h = hist[d] ||= {items: []};
+    if (!h.items.find(y => y.t === x.title)) h.items.push({t: x.title, s: +x.s.toFixed(2), src: x.src});
+    h.items.sort((a, b) => Math.abs(b.s) - Math.abs(a.s)); h.items = h.items.slice(0, 8);
+    h.score = h.items.reduce((a, y) => a + y.s, 0) / h.items.length;
+  }
+  const days = Object.keys(hist).sort(); for (const d of days.slice(0, Math.max(0, days.length - 500))) delete hist[d];
+  store.set('newsHist', hist);
+  let num = 0, den = 0;
+  for (const x of out){ const age = (Date.now() - x.time) / 864e5, w = Math.pow(0.5, Math.max(0, age) / 2); num += w * x.s; den += w }
+  return {items: out.slice(0, 15), score: den ? Math.max(-1, Math.min(1, num / den * 1.5)) : 0, ok: out.length > 0, ai};
+}
+
+/* ---------- MODEL ---------- */
+function prep(d){
+  const ro = [], rk = [];
+  for (let i = 1; i < d.length; i++){ ro.push(Math.log(d[i].ons / d[i-1].ons)); rk.push(Math.log(d[i].kur / d[i-1].kur)) }
+  const L = 0.94, vo = [], vk = [];
+  let a = 0, b = 0; for (let i = 0; i < 30; i++){ a += ro[i]**2; b += rk[i]**2 } a /= 30; b /= 30;
+  for (let i = 0; i < ro.length; i++){ vo.push(a); vk.push(b); a = L*a + (1-L)*ro[i]**2; b = L*b + (1-L)*rk[i]**2 }
+  vo.push(a); vk.push(b);
+  return {ro, rk, vo, vk};
+}
+const mean = (a, s, e) => { s = Math.max(0, s); let t = 0; for (let i = s; i < e; i++) t += a[i]; return t / Math.max(1, e - s) };
+function rng(seed){ return () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296 } }
+// Yöntemler: ons ve kur için beklenen günlük getiri (drift) farklı kurulur; oynaklık hepsinde EWMA + kalıntı bootstrap.
+const METHODS = {
+  denge:   {ad: 'Dengeli',        mu: (P, e) => [0.25 * mean(P.ro, e - 365, e), 0.7 * mean(P.rk, e - 30, e) + 0.3 * mean(P.rk, e - 180, e)]},
+  momentum:{ad: 'Momentum',       mu: (P, e) => [0.5 * mean(P.ro, e - 20, e),   0.7 * mean(P.rk, e - 30, e) + 0.3 * mean(P.rk, e - 180, e)]},
+  sabit:   {ad: 'Sadece kur trendi', mu: (P, e) => [0,                          mean(P.rk, e - 30, e)]},
+  uzun:    {ad: 'Uzun trend',     mu: (P, e) => [0.5 * mean(P.ro, e - 365, e), mean(P.rk, e - 365, e)]}
+};
+function forecast(P, end, h, o = {}){
+  const {ro, rk, vo, vk} = P, m0 = Math.max(30, end - 730), sims = o.sims || 4000;
+  const [muO, muK] = METHODS[o.method || 'denge'].mu(P, end);
+  const so = Math.sqrt(vo[end]), sk = Math.sqrt(vk[end]), news = o.news || 0, beta = o.beta ?? 0.12 * so;
+  const R = rng(o.seed || 7), m = end - m0, res = new Float64Array(sims);
+  const zo = new Float64Array(m), zk = new Float64Array(m);
+  for (let i = 0; i < m; i++){ zo[i] = ro[m0 + i] / Math.sqrt(vo[m0 + i]); zk[i] = rk[m0 + i] / Math.sqrt(vk[m0 + i]) }
+  for (let s = 0; s < sims; s++){
+    let r = 0;
+    for (let d = 0; d < h; d++){ const j = (R() * m) | 0; r += muO + muK + news * beta * Math.exp(-d / 4) + so * zo[j] + sk * zk[j] }
+    res[s] = r;
+  }
+  res.sort();
+  const bias = o.bias || 0, q = p => res[Math.min(sims - 1, Math.floor(p * sims))] + bias;
+  let up = 0; for (let s = 0; s < sims; s++) if (res[s] + bias > 0) up++;
+  return {med: Math.exp(q(0.5)) - 1, lo: Math.exp(q(0.1)) - 1, hi: Math.exp(q(0.9)) - 1, lq: [q(0.1), q(0.5), q(0.9)], pUp: up / sims, kurPart: Math.exp(muK * h) - 1};
+}
+// Pinball (quantile) kaybı: hem merkez hem aralık doğruluğunu ölçen dürüst bir puan
+const pinball = (lq, y) => [0.1, 0.5, 0.9].reduce((a, p, i) => a + (y >= lq[i] ? p * (y - lq[i]) : (1 - p) * (lq[i] - y)), 0) / 3;
+function backtest(d, P, h, method){
+  const n = d.length; let hit = 0, naive = 0, cov = 0, cnt = 0, loss = 0;
+  for (let t = Math.max(120, n - 1 - 365); t + h < n; t += 3){
+    const f = forecast(P, t, h, {method, sims: 600, seed: t});
+    const y = Math.log((d[t + h].ons * d[t + h].kur) / (d[t].ons * d[t].kur));
+    if ((f.lq[1] > 0) === (y > 0)) hit++;
+    if (y > 0) naive++;
+    if (y >= f.lq[0] && y <= f.lq[2]) cov++;
+    loss += pinball(f.lq, y); cnt++;
+  }
+  return cnt ? {hit: hit / cnt, naive: naive / cnt, cov: cov / cnt, loss: loss / cnt * 1e4, cnt} : null;
+}
+// Hafızadan öğrenme 1: haber puanı → ertesi gün ons getirisi (regresyon)
+function learnNews(d, P){
+  const hist = store.get('newsHist', {}), idx = new Map(d.map((x, i) => [dayKey(x.t), i])), xs = [], ys = [];
+  for (const [day, h] of Object.entries(hist)){ const i = idx.get(day); if (i != null && i < P.ro.length && h.items.length >= 3){ xs.push(h.score); ys.push(P.ro[i]) } }
+  const n = xs.length; if (n < 20) return {n, beta: null};
+  const mx = mean(xs, 0, n), my = mean(ys, 0, n); let c = 0, v = 0;
+  for (let i = 0; i < n; i++){ c += (xs[i] - mx) * (ys[i] - my); v += (xs[i] - mx) ** 2 }
+  const raw = v ? c / v : 0, so = Math.sqrt(P.vo[P.ro.length]);
+  return {n, beta: Math.max(-0.5 * so, Math.min(0.5 * so, raw * n / (n + 40) + 0.12 * so * 40 / (n + 40)))};
+}
+// Hafızadan öğrenme 2: kendi tahmin günlüğündeki sistematik sapma
+function learnBias(h){
+  const done = store.get('log', []).filter(x => x.h === h && x.act != null);
+  if (done.length < 5) return {n: done.length, bias: 0};
+  const b = done.reduce((a, x) => a + (Math.log(1 + x.act) - Math.log(1 + x.med)), 0) / done.length;
+  return {n: done.length, bias: b * done.length / (done.length + 20)};
+}
+
+/* ---------- AYLIK ANALİZ ---------- */
+const AY = ['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran','Temmuz','Ağustos','Eylül','Ekim','Kasım','Aralık'];
+function months(d, P){
+  const out = [], hist = store.get('newsHist', {});
+  let i0 = 0;
+  for (let i = 1; i <= d.length; i++){
+    const mk = i < d.length ? dayKey(d[i].t).slice(0, 7) : null;
+    if (mk !== dayKey(d[i - 1].t).slice(0, 7)){
+      const s = Math.max(0, i0 - 1), e = i - 1;
+      if (i0 > 0){
+        const lo = Math.log(d[e].ons / d[s].ons), lk = Math.log(d[e].kur / d[s].kur);
+        let vol = 0, best = {r: -9}, worst = {r: 9};
+        for (let j = i0; j <= e; j++){ const r = P.ro[j - 1] + P.rk[j - 1]; vol += r * r; if (r > best.r) best = {r, j}; if (r < worst.r) worst = {r, j} }
+        const key = dayKey(d[e].t).slice(0, 7), news = [];
+        for (const [day, h] of Object.entries(hist)) if (day.startsWith(key)) for (const it of h.items) news.push({...it, day});
+        news.sort((a, b) => Math.abs(b.s) - Math.abs(a.s));
+        out.push({key, lo, lk, g: lo + lk, vol: Math.sqrt(vol / (e - i0 + 1) * 30), best, worst, news: news.slice(0, 4), partial: i === d.length, days: e - i0 + 1});
+      }
+      i0 = i;
+    }
+  }
+  const avgVol = out.reduce((a, m) => a + m.vol, 0) / Math.max(1, out.length);
+  return out.map(m => ({...m, why: explain(m, avgVol)})).reverse().slice(0, 12);
+}
+function explain(m, avgVol){
+  const E = x => pct(Math.exp(x) - 1), parts = [];
+  const dir = m.g >= 0 ? 'arttı' : 'azaldı', big = Math.abs(m.lo) >= Math.abs(m.lk) ? 'ons' : 'kur';
+  if (Math.abs(m.g) < 0.005) parts.push('Gram altın neredeyse yatay kaldı.');
+  else parts.push(`Gram altın %${fmt(Math.abs(Math.exp(m.g) - 1) * 100, 1)} ${dir}; ana sürükleyici ${big === 'ons' ? 'dünya altın fiyatı (ons)' : 'dolar kuru'}.`);
+  if (Math.sign(m.lo) !== Math.sign(m.lk) && Math.abs(m.lo) > 0.005) parts.push(`Ons ${E(m.lo)}, kur ${E(m.lk)} hareket etti; ${Math.abs(m.lo) > Math.abs(m.lk) ? 'kur etkisi onsun yönünü değiştiremedi' : 'kur, onstaki hareketi dengeledi'}.`);
+  else parts.push(`Ons ${E(m.lo)}, kur ${E(m.lk)} değişti.`);
+  parts.push(m.vol > avgVol * 1.3 ? 'Ay normalden çok daha dalgalıydı.' : m.vol < avgVol * 0.75 ? 'Sakin bir aydı.' : 'Dalgalanma ortalama düzeydeydi.');
+  return parts.join(' ');
+}
+
+/* ---------- ÇİZİM ---------- */
+let DATA = null, PREP = null, RANGE = 365, CHOSEN = {1: 'denge', 7: 'denge', 30: 'denge'}, BT = {};
+const prem = () => 1 + (store.get('prem', 0) || 0) / 100;
+function drawChart(){
+  const s = $('chart'); if (!DATA) return;
+  const W = s.clientWidth, H = s.clientHeight, k = prem();
+  const pts = DATA.slice(-RANGE).map(x => ({t: x.t, v: x.ons * x.kur / OZ * k}));
+  const vs = pts.map(p => p.v), mn = Math.min(...vs), mx = Math.max(...vs), pad = (mx - mn) * 0.08 || 1;
+  const X = i => 4 + i / (pts.length - 1) * (W - 8), Y = v => 8 + (1 - (v - mn + pad) / (mx - mn + 2 * pad)) * (H - 30);
+  const line = pts.map((p, i) => (i ? 'L' : 'M') + X(i).toFixed(1) + ' ' + Y(p.v).toFixed(1)).join('');
+  const dt = t => new Date(t).toLocaleDateString(TR, {day: 'numeric', month: 'short', year: '2-digit'});
+  s.innerHTML = `<defs><linearGradient id="gf" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1a1508" stop-opacity=".22"/><stop offset="1" stop-color="#1a1508" stop-opacity="0"/></linearGradient></defs>
+  <path d="${line}L${X(pts.length - 1)} ${H - 22}L${X(0)} ${H - 22}Z" fill="url(#gf)"/><path d="${line}" fill="none" stroke="#1a1508" stroke-width="2" stroke-linejoin="round"/>
+  <circle cx="${X(pts.length - 1)}" cy="${Y(vs[vs.length - 1])}" r="4" fill="#1a1508"/>
+  <text x="4" y="${H - 4}" font-size="12" fill="#1a1508aa">${dt(pts[0].t)}</text><text x="${W - 4}" y="${H - 4}" font-size="12" fill="#1a1508aa" text-anchor="end">${dt(pts[pts.length - 1].t)}</text>
+  ${W > 360 ? `<text x="${W - 4}" y="${Math.max(14, Y(mx) - 6)}" font-size="12" fill="#1a1508aa" text-anchor="end">en yüksek ${fmt(mx, 0)}</text>` : ''}`;
+}
+const chartObs = new ResizeObserver(drawChart); chartObs.observe($('chart'));
+
+const HZ = [[1, '24 saat'], [7, '1 hafta'], [30, '1 ay']];
+function renderForecasts(price, news, beta){
+  const end = PREP.ro.length, res = {};
+  $('fc').innerHTML = HZ.map(([h, name]) => {
+    const lb = learnBias(h), f = forecast(PREP, end, h, {method: CHOSEN[h], news, beta, bias: lb.bias}); res[h] = f;
+    const span = Math.max(Math.abs(f.lo), Math.abs(f.hi)) * 1.15 || 0.01, pos = v => ((v + span) / (2 * span) * 100).toFixed(1);
+    return `<div class="card">
+      <div class="row"><h3>${name}</h3><span class="pct ${f.med >= 0 ? 'up' : 'dn'}">${pct(f.med)}</span></div>
+      <div class="prob">Yükselme olasılığı <b>%${Math.round(f.pUp * 100)}</b> · beklenen ${fmt(price * (1 + f.med), 0)} TL</div>
+      <div class="bar"><div class="zero" style="left:${pos(0)}%"></div><div class="rng" style="left:${pos(f.lo)}%;width:${(pos(f.hi) - pos(f.lo)).toFixed(1)}%"></div><div class="med" style="left:${pos(f.med)}%"></div></div>
+      <div class="lbl"><span>${fmt(price * (1 + f.lo), 0)} TL (${pct(f.lo)})</span><span>${fmt(price * (1 + f.hi), 0)} TL (${pct(f.hi)})</span></div>
+      <div class="prob" style="margin-top:6px">Kurdan beklenen pay ${pct(f.kurPart)} · <span class="tag">${METHODS[CHOSEN[h]].ad}</span>${lb.n >= 5 ? ` · günlükten düzeltme ${pct(Math.exp(lb.bias) - 1, 2)}` : ''}</div>
+    </div>`;
+  }).join('');
+  return res;
+}
+function renderAskToday(price, fc, N){
+  const last = DATA[DATA.length - 1], m30 = DATA[Math.max(0, DATA.length - 31)];
+  const p = `Türkiye'de gram altın şu an yaklaşık ${fmt(price, 0)} TL. Ons ${fmt(last.ons, 0)} $, USD/TRY ${fmt(last.kur, 2)}. Son 30 günde gram ${pct((last.ons * last.kur) / (m30.ons * m30.kur) - 1)}, ons ${pct(last.ons / m30.ons - 1)}, kur ${pct(last.kur / m30.kur - 1)} değişti.
+İstatistik modelimin tahminleri (medyan, %80 aralık): 24 saat ${pct(fc[1].med)} (${pct(fc[1].lo)} / ${pct(fc[1].hi)}), 1 hafta ${pct(fc[7].med)} (${pct(fc[7].lo)} / ${pct(fc[7].hi)}), 1 ay ${pct(fc[30].med)} (${pct(fc[30].lo)} / ${pct(fc[30].hi)}).
+Son haber başlıkları:
+${N.items.slice(0, 10).map(x => '- ' + x.title).join('\n')}
+Güncel haberleri de araştırarak altını şu an hangi etkenlerin yönlendirdiğini ve önümüzdeki günlerde nelere dikkat etmem gerektiğini kısaca açıkla (Fed, dolar endeksi, jeopolitik, TCMB ve kur). Modelimin tahminleri bu tabloyla uyumlu mu, değerlendir. Yatırım tavsiyesi verme, kısa tut.`;
+  $('askToday').innerHTML = askLink(p, 'Bugünkü durumu Claude\'a sor');
+}
+function renderNews(N){
+  const sc = N.score;
+  $('needle').style.left = ((sc + 1) / 2 * 100) + '%';
+  $('newsScore').textContent = N.ok ? (sc > 0.15 ? 'Olumlu' : sc < -0.15 ? 'Olumsuz' : 'Nötr') + ' (' + (sc >= 0 ? '+' : '') + sc.toFixed(2) + ')' : 'Haberler alınamadı';
+  $('newsNote').textContent = 'Başlıklar altın için olumlu ya da olumsuz diye puanlanır (' + (N.ai ? 'Claude ile' : 'anahtar kelimelerle') + ') ve her gün bu telefona kaydedilir.';
+  const ago = t => { const m = (Date.now() - t) / 6e4; return m < 60 ? Math.max(1, Math.round(m)) + ' dk önce' : m < 1440 ? Math.round(m / 60) + ' sa önce' : Math.round(m / 1440) + ' gün önce' };
+  $('news').innerHTML = N.items.map(x => `<li><span class="dot ${x.s > 0.1 ? 'p' : x.s < -0.1 ? 'n' : ''}"></span><div><a href="${esc(x.link)}" target="_blank" rel="noopener">${esc(x.title)}</a><small>${esc(x.src)} · ${ago(x.time)}</small></div></li>`).join('') || '<li><span></span><div class="note">Şu an haber yok veya haber servisine ulaşılamadı.</div></li>';
+}
+function renderMonths(){
+  const ms = months(DATA, PREP), ai = store.get('aiMonths', {}), hasKey = !!store.get('key', '');
+  const bar = (v, max, col) => { const w = Math.min(50, Math.abs(v) / max * 50); return `<div class="track"><span class="mid"></span><b style="background:${col};${v >= 0 ? 'left:50%' : 'right:50%'};width:${w}%"></b></div>` };
+  const max = Math.max(0.02, ...ms.map(m => Math.max(Math.abs(m.lo), Math.abs(m.lk), Math.abs(m.g))));
+  const dd = j => new Date(DATA[j].t).toLocaleDateString(TR, {day: 'numeric', month: 'short'});
+  $('months').innerHTML = ms.map(m => {
+    const [y, mo] = m.key.split('-');
+    return `<div class="card">
+      <div class="row"><h3>${AY[+mo - 1]} ${y}${m.partial ? ' <span class="tag">devam ediyor</span>' : ''}</h3><span class="pct ${m.g >= 0 ? 'up' : 'dn'}" style="font-size:22px">${pct(Math.exp(m.g) - 1)}</span></div>
+      <div class="dec"><span>Ons</span>${bar(m.lo, max, 'var(--gold)')}<span class="v">${pct(Math.exp(m.lo) - 1)}</span><span>Kur</span>${bar(m.lk, max, 'var(--kur)')}<span class="v">${pct(Math.exp(m.lk) - 1)}</span></div>
+      <p class="why">${m.why}</p>
+      <p class="prob" style="margin:6px 0 0">En iyi gün ${dd(m.best.j)} ${pct(Math.exp(m.best.r) - 1)} · en kötü gün ${dd(m.worst.j)} ${pct(Math.exp(m.worst.r) - 1)}</p>
+      ${m.news.length ? `<ul class="news" style="margin-top:8px">${m.news.map(n => `<li><span class="dot ${n.s > 0.1 ? 'p' : n.s < -0.1 ? 'n' : ''}"></span><div>${esc(n.t)}<small>${esc(n.src)} · ${new Date(n.day).toLocaleDateString(TR, {day: 'numeric', month: 'short'})}</small></div></li>`).join('')}</ul>` : '<p class="prob" style="margin:6px 0 0">Bu ay için kayıtlı haber yok; uygulama açıldıkça haberler biriktirilir.</p>'}
+      ${ai[m.key] ? `<div class="ai">${esc(ai[m.key])}</div>` : `<div class="btns" style="margin-top:10px">${askLink(monthPrompt(m), 'Claude\'da sor: neden?')}${hasKey ? `<button type="button" class="mini" style="margin:0" data-ai="${m.key}">Burada yorumla (API)</button>` : ''}</div>`}
+    </div>`;
+  }).join('');
+  window.__months = ms;
+}
+function monthPrompt(m){
+  const [y, mo] = m.key.split('-');
+  return `${AY[+mo - 1]} ${y} ayında Türkiye'de gram altın (TL) ${pct(Math.exp(m.g) - 1)} değişti. Ons altın (USD) ${pct(Math.exp(m.lo) - 1)}, USD/TRY ${pct(Math.exp(m.lk) - 1)} değişti. En sert yükseliş günü ${dayKey(DATA[m.best.j].t)} (${pct(Math.exp(m.best.r) - 1)}), en sert düşüş günü ${dayKey(DATA[m.worst.j].t)} (${pct(Math.exp(m.worst.r) - 1)}).
+${m.news.length ? 'O ay kaydedilen haber başlıkları:\n' + m.news.map(n => '- ' + n.day + ': ' + n.t).join('\n') : 'O ay için kayıtlı haber yok.'}
+Bu hareketin olası nedenlerini Türkçe, en fazla 5 kısa cümleyle açıkla: Fed/faiz beklentileri, dolar endeksi, jeopolitik gelişmeler, TCMB kararları ve kur politikası gibi etkenleri değerlendir. Emin olmadığın olayları kesinmiş gibi yazma; tahmin ediyorsan "muhtemelen" de. Başlık veya madde işareti kullanma.`;
+}
+const askUrl = p => 'https://claude.ai/new?q=' + encodeURIComponent(p);
+function askLink(p, label){ return `<a class="ask" href="${askUrl(p)}" target="_blank" rel="noopener" data-p="${esc(p)}">${label}</a>` }
+async function aiMonth(key, btn){
+  const m = window.__months.find(x => x.key === key); if (!m) return;
+  btn.disabled = true; btn.textContent = 'Yorumlanıyor…';
+  const prompt = monthPrompt(m);
+  try{ const txt = (await claude(prompt, 450)).trim(); const ai = store.get('aiMonths', {}); if (!m.partial) { ai[key] = txt; store.set('aiMonths', ai) } btn.outerHTML = `<div class="ai">${esc(txt)}</div>` }
+  catch(e){ btn.disabled = false; btn.textContent = 'Hata: ' + e.message.slice(0, 60) + ' — tekrar dene' }
+}
+function renderBacktest(){
+  const naive = [];
+  $('bt').tBodies[0].innerHTML = HZ.map(([h, name]) => {
+    const rows = Object.keys(METHODS).map(k => ({k, b: BT[h][k]})).filter(r => r.b).sort((a, b) => a.b.loss - b.b.loss);
+    if (!rows.length) return `<tr><td>${name}</td><td colspan="3">Yetersiz veri</td></tr>`;
+    naive.push(name + ' %' + Math.round(rows[0].b.naive * 100));
+    return `<tr><td colspan="4" style="font-weight:700;padding-top:14px">${name}</td></tr>` + rows.map((r, i) => `<tr${i ? '' : ' style="font-weight:600"'}><td style="white-space:normal">${METHODS[r.k].ad}${i ? ' ' : ' ✓'}</td><td>${r.b.loss.toFixed(1)}</td><td>%${Math.round(r.b.hit * 100)}</td><td>%${Math.round(r.b.cov * 100)}</td></tr>`).join('');
+  }).join('');
+  $('naive').textContent = naive.join(', ');
+}
+function renderLearn(nl){
+  const lb = HZ.map(([h, n]) => { const b = learnBias(h); return b.n >= 5 ? `${n}: ${b.n} tahmin, düzeltme ${pct(Math.exp(b.bias) - 1, 2)}` : `${n}: ${b.n}/5 tahmin` });
+  $('learn').innerHTML = `<p class="why" style="margin:0"><b>Haber etkisi.</b> ${nl.beta == null ? `Öğreniliyor: ${nl.n}/20 günlük haber kaydı var. O zamana kadar varsayılan küçük bir etki kullanılıyor.` : `${nl.n} günlük kayda göre olumlu haber günlerinde ons ertesi gün ortalama ${pct(Math.exp(nl.beta) - 1, 2)} kadar ${nl.beta >= 0 ? 'yükseliyor' : 'düşüyor'}. Tahminler bu öğrenilen etkiyi kullanıyor.`}</p>
+  <p class="why"><b>Sapma düzeltmesi.</b> Kendi tahminlerin sistematik olarak düşük ya da yüksek çıkıyorsa model kendini düzeltir. ${lb.join(' · ')}</p>`;
+}
+function updateLog(rawPrice, fc){
+  const log = store.get('log', []), today = dayKey(Date.now());
+  for (const [h] of HZ) if (!log.find(x => x.d === today && x.h === h)) log.push({d: today, h, p: rawPrice, med: fc[h].med, lo: fc[h].lo, hi: fc[h].hi, m: CHOSEN[h]});
+  const lastT = DATA[DATA.length - 1].t;
+  for (const x of log) if (x.act == null){ const t = Date.parse(x.d) + x.h * 864e5; if (t < lastT){ const row = DATA.find(r => r.t >= t); if (row) x.act = row.ons * row.kur / OZ / x.p - 1 } }
+  store.set('log', log.slice(-400));
+  $('log').tBodies[0].innerHTML = log.slice().reverse().slice(0, 30).map(x => {
+    const ok = (x.act > 0) === (x.med > 0), inR = x.act >= x.lo && x.act <= x.hi;
+    return `<tr><td>${new Date(x.d).toLocaleDateString(TR, {day: 'numeric', month: 'short'})}</td><td>${HZ.find(z => z[0] === x.h)[1]}</td><td>${pct(x.med, 2)}</td>${x.act == null ? '<td>—</td><td>Bekliyor</td>' : `<td>${pct(x.act, 2)}</td><td class="${ok ? 'up' : 'dn'}">${ok ? 'Yön doğru' : 'Yön yanlış'}${inR ? ', aralıkta' : ''}</td>`}</tr>`;
+  }).join('');
+}
+function memInfo(){
+  const h = store.get('newsHist', {}), l = store.get('log', []);
+  $('memInfo').textContent = `Kayıtlı: ${Object.keys(h).length} günün haberleri, ${l.length} tahmin, ${Object.keys(store.get('aiMonths', {})).length} ay yorumu.`;
+}
+
+/* ---------- AKIŞ ---------- */
+async function load(){
+  const btn = $('refresh'); btn.innerHTML = '<span class="spin">↻</span>'; btn.disabled = true; $('status').innerHTML = '';
+  try{
+    const newsP = loadNews();
+    const d = await getData();
+    DATA = d; PREP = prep(d); drawChart();
+    const last = d[d.length - 1], prev = d[d.length - 2], raw = last.ons * last.kur / OZ, price = raw * prem();
+    $('price').textContent = fmt(price, 2) + ' ₺';
+    $('chg24').textContent = 'Dünden beri ' + pct((last.ons * last.kur) / (prev.ons * prev.kur) - 1, 2);
+    $('ons').textContent = 'Ons ' + fmt(last.ons, 0) + ' $';
+    $('kur').textContent = 'Dolar ' + fmt(last.kur, 2) + ' ₺';
+    $('ceyrek').textContent = 'Çeyrek (has) ≈ ' + fmt(price * 1.6065, 0) + ' ₺';
+    $('stamp').textContent = 'Güncelleme: ' + new Date().toLocaleTimeString(TR, {hour: '2-digit', minute: '2-digit'}) + ' · kaynak ' + SOURCE;
+    // en iyi yöntemi seç (geriye dönük test)
+    for (const [h] of HZ){ BT[h] = {}; let best = null; for (const m in METHODS){ const b = backtest(d, PREP, h, m); BT[h][m] = b; if (b && (!best || b.loss < BT[h][best].loss)) best = m } if (best) CHOSEN[h] = best }
+    const N = await newsP; renderNews(N);
+    const nl = learnNews(d, PREP);
+    const fc = renderForecasts(price, N.ok ? N.score : 0, nl.beta ?? undefined);
+    updateLog(raw, fc); renderAskToday(price, fc, N); renderBacktest(); renderLearn(nl); renderMonths(); memInfo();
+  }catch(e){
+    const inClaude = /claude\.ai|claudeusercontent|anthropic/.test(location.hostname) || window.self !== window.top;
+    $('status').innerHTML = inClaude ? `<div class="card err" style="margin-top:16px"><b>Bu sayfa Claude'un önizlemesinde açılmış.</b> Claude güvenlik için buradan başka sitelere bağlanılmasına izin vermiyor, o yüzden fiyatlar gelmiyor. Dosyayı telefona indirip Chrome'da açman gerekiyor.</div>` : `<div class="card err" style="margin-top:16px"><b>Veri alınamadı.</b> İnternet bağlantını kontrol edip Yenile'ye bas.<small style="display:block;margin-top:6px">${esc(e.message || e)}</small></div>`;
+    $('chg24').textContent = 'Veri yok';
+  }finally{ btn.textContent = 'Yenile'; btn.disabled = false }
+}
+$('refresh').addEventListener('click', load);
+$('range').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; RANGE = +b.dataset.d; for (const x of $('range').children) x.classList.toggle('on', x === b); drawChart() });
+$('tabs').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; for (const x of $('tabs').children) x.classList.toggle('on', x === b); for (const s of document.querySelectorAll('main section')) s.hidden = s.id !== b.dataset.t; try{ sessionStorage.setItem('alt_tab', b.dataset.t) }catch(e){} });
+$('months').addEventListener('click', e => { const b = e.target.closest('[data-ai]'); if (b) aiMonth(b.dataset.ai, b) });
+document.addEventListener('click', e => { const a = e.target.closest('a.ask'); if (!a) return; try{ navigator.clipboard.writeText(a.dataset.p).then(() => { a.dataset.l ||= a.textContent; a.textContent = 'Açılıyor · soru panoya da kopyalandı'; setTimeout(() => a.textContent = a.dataset.l, 4000) }, () => {}) }catch(err){} });
+$('prem').value = store.get('prem', 0) || '';
+$('prem').addEventListener('change', e => { store.set('prem', parseFloat(e.target.value) || 0); load() });
+$('key').value = store.get('key', '');
+$('key').addEventListener('change', e => { store.set('key', e.target.value.trim()); load() });
+$('exp').addEventListener('click', () => {
+  const o = {}; for (const k of KEYS) if (k !== 'key') o[k] = store.get(k, null);
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(o)], {type: 'application/json'}));
+  a.download = 'altin-hafiza-' + dayKey(Date.now()) + '.json'; document.body.appendChild(a); a.click(); a.remove();
+});
+$('imp').addEventListener('change', async e => {
+  const f = e.target.files[0]; if (!f) return;
+  try{ const o = JSON.parse(await f.text()); for (const k of KEYS) if (k !== 'key' && o[k] != null) store.set(k, o[k]); memInfo(); load() }catch(err){ $('memInfo').textContent = 'Yedek okunamadı: ' + err.message }
+});
+try{ const t = sessionStorage.getItem('alt_tab'); if (t) $('tabs').querySelector(`[data-t="${t}"]`)?.click() }catch(e){}
+load();
+setInterval(() => { if (!document.hidden) load() }, 5 * 60 * 1000);
+}
+</script>
+</body>
+</html>
