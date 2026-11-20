@@ -348,7 +348,10 @@ function lwcRange(){
   if (RANGE >= n) LW.chart.timeScale().fitContent();
   else LW.chart.timeScale().setVisibleRange({from: H.dates[Math.max(0, n - RANGE)], to: RANGE <= 260 ? to : H.dates[n - 1]});
 }
-async function chartDraw(){ if (await LWC_READY) lwcDraw(); else drawChart() }
+async function chartDraw(){
+  try{ if (await LWC_READY){ lwcDraw(); return } }catch(e){ console.error('grafik', e); if (LW){ try{ LW.chart.remove() }catch(_){} } LW = null; $('lwc').hidden = true }
+  $('chart').style.display = ''; drawChart();
+}
 
 /* ---------- BUGÜN ---------- */
 function renderForecasts(){

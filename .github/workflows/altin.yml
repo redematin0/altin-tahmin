@@ -52,6 +52,11 @@ jobs:
           SITE_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
         run: python scripts/collect.py
 
+      - name: Grafik kütüphanesi (bir kez indirilir, hafızada saklanır)
+        run: |
+          [ -s data/lightweight-charts.js ] || curl -fsSL --retry 3 -o data/lightweight-charts.js https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js || echo "indirilemedi"
+          ls -la data/lightweight-charts.js || true
+
       - name: Hafızayı kaydet (state dalı, geçmişsiz)
         run: |
           cd data
@@ -71,8 +76,8 @@ jobs:
           cp index.html manifest.webmanifest sw.js icon-180.png icon-192.png icon-512.png _site/
           cp data/*.json _site/data/ 2>/dev/null || true
           mkdir -p _site/vendor
-          curl -fsSL --retry 3 -o _site/vendor/lightweight-charts.js https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js || echo "grafik kütüphanesi indirilemedi (sayfa yedek grafiğe döner)"
-          rm -f _site/data/telegram.json _site/data/factors.json _site/data/backtest.json
+          cp data/lightweight-charts.js _site/vendor/ 2>/dev/null || echo "grafik kütüphanesi yok (sayfa CDN'e ya da basit grafiğe döner)"
+          rm -f _site/data/lightweight-charts.js _site/data/telegram.json _site/data/factors.json _site/data/backtest.json
 
       - uses: actions/upload-pages-artifact@v3
         with:
