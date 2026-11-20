@@ -121,9 +121,9 @@ input[type=number],input[type=password]{font:inherit;font-size:16px;min-height:4
 
   <section id="karne" hidden>
     <h2>Hangi yöntem ne kadar tutuyor?</h2>
-    <p class="note">Her yöntem son bir yıla geri götürülüp, sonrasını görmeden tahmin yaptırıldı. Hata puanı düşük olan kazanır ve o süre için kullanılır.</p>
+    <p class="note">Her yöntem son iki yıla geri götürülüp, sonrasını görmeden tahmin yaptırıldı. Hata puanı düşük olan kazanır ve o süre için kullanılır.</p>
     <div class="card scroll"><table id="bt"><thead><tr><th>Süre / yöntem</th><th>Hata</th><th>Yön</th><th>Aralık</th></tr></thead><tbody><tr><td colspan="4">Hesaplanıyor…</td></tr></tbody></table></div>
-    <p class="note" style="margin-top:8px">Hata: düşük olan daha iyi. Yön: yönü doğru bilme oranı. Aralık: gerçek fiyatın %80 aralığa düşme oranı (ideali %80). Karşılaştırma: "hep yukarı" deseydin yön isabetin <span id="naive">—</span> olurdu.</p>
+    <p class="note" style="margin-top:8px">Hata: düşük olan daha iyi. Yön: yönü doğru bilme oranı. Aralık: gerçek fiyatın %80 aralığa düşme oranı, ayar öncesi (ideali %80; sapma varsa aralıklar otomatik ölçeklenir). Karşılaştırma: "hep yukarı" deseydin yön isabetin <span id="naive">—</span> olurdu.</p>
     <h2>Öğrenilenler</h2>
     <div class="card" id="learn"></div>
     <h2>Tahmin günlüğüm</h2>
@@ -284,36 +284,56 @@ const METHODS = {
   sabit:   {ad: 'Sadece kur trendi', mu: (P, e) => [0,                          mean(P.rk, e - 30, e)]},
   uzun:    {ad: 'Uzun trend',     mu: (P, e) => [0.5 * mean(P.ro, e - 365, e), mean(P.rk, e - 365, e)]}
 };
+const PHI = 0.97; // oynaklığın uzun dönem ortalamasına dönüş hızı (yarı ömür ≈ 23 gün)
 function forecast(P, end, h, o = {}){
   const {ro, rk, vo, vk} = P, m0 = Math.max(30, end - 730), sims = o.sims || 4000;
   const [muO, muK] = METHODS[o.method || 'denge'].mu(P, end);
-  const so = Math.sqrt(vo[end]), sk = Math.sqrt(vk[end]), news = o.news || 0, beta = o.beta ?? 0.12 * so;
+  const so = Math.sqrt(vo[end]), news = o.news || 0, beta = o.beta ?? 0.12 * so;
   const R = rng(o.seed || 7), m = end - m0, res = new Float64Array(sims);
   const zo = new Float64Array(m), zk = new Float64Array(m);
-  for (let i = 0; i < m; i++){ zo[i] = ro[m0 + i] / Math.sqrt(vo[m0 + i]); zk[i] = rk[m0 + i] / Math.sqrt(vk[m0 + i]) }
+  let mo = 0, mk = 0, lo2 = 0, lk2 = 0;
+  for (let i = 0; i < m; i++){ zo[i] = ro[m0 + i] / Math.sqrt(vo[m0 + i]); zk[i] = rk[m0 + i] / Math.sqrt(vk[m0 + i]); mo += zo[i]; mk += zk[i]; lo2 += ro[m0 + i] ** 2; lk2 += rk[m0 + i] ** 2 }
+  // Kalıntıların ortalaması sıfırlanır: aksi halde geçmişteki büyük yükseliş, simülasyona gizli bir "yukarı" eğilim olarak taşınıyordu.
+  mo /= m; mk /= m; for (let i = 0; i < m; i++){ zo[i] -= mo; zk[i] -= mk }
+  // Oynaklık patikası: bugünkü seviyeden uzun dönem ortalamasına doğru yavaşça döner.
+  lo2 /= m; lk2 /= m;
+  const sO = new Float64Array(h), sK = new Float64Array(h), dN = new Float64Array(h);
+  for (let d = 0; d < h; d++){ const f = PHI ** d; sO[d] = Math.sqrt(lo2 + (vo[end] - lo2) * f); sK[d] = Math.sqrt(lk2 + (vk[end] - lk2) * f); dN[d] = news * beta * Math.exp(-d / 4) }
+  const mu = muO + muK;
   for (let s = 0; s < sims; s++){
     let r = 0;
-    for (let d = 0; d < h; d++){ const j = (R() * m) | 0; r += muO + muK + news * beta * Math.exp(-d / 4) + so * zo[j] + sk * zk[j] }
+    for (let d = 0; d < h; d++){ const j = (R() * m) | 0; r += mu + dN[d] + sO[d] * zo[j] + sK[d] * zk[j] }
     res[s] = r;
   }
   res.sort();
-  const bias = o.bias || 0, q = p => res[Math.min(sims - 1, Math.floor(p * sims))] + bias;
-  let up = 0; for (let s = 0; s < sims; s++) if (res[s] + bias > 0) up++;
+  // scale: geriye dönük testte ölçülen aralık isabetine göre kuyruklar genişletilir/daraltılır
+  const bias = o.bias || 0, k = o.scale || 1, raw = p => res[Math.min(sims - 1, Math.floor(p * sims))];
+  const c = raw(0.5), q = p => c + (raw(p) - c) * k + bias;
+  let up = 0; for (let s = 0; s < sims; s++) if (c + (res[s] - c) * k + bias > 0) up++;
   return {med: Math.exp(q(0.5)) - 1, lo: Math.exp(q(0.1)) - 1, hi: Math.exp(q(0.9)) - 1, lq: [q(0.1), q(0.5), q(0.9)], pUp: up / sims, kurPart: Math.exp(muK * h) - 1};
 }
 // Pinball (quantile) kaybı: hem merkez hem aralık doğruluğunu ölçen dürüst bir puan
 const pinball = (lq, y) => [0.1, 0.5, 0.9].reduce((a, p, i) => a + (y >= lq[i] ? p * (y - lq[i]) : (1 - p) * (lq[i] - y)), 0) / 3;
 function backtest(d, P, h, method){
-  const n = d.length; let hit = 0, naive = 0, cov = 0, cnt = 0, loss = 0;
-  for (let t = Math.max(120, n - 1 - 365); t + h < n; t += 3){
-    const f = forecast(P, t, h, {method, sims: 600, seed: t});
+  // Son iki yıl: hem yükseliş hem düşüş dönemlerini kapsasın diye
+  const n = d.length; let hit = 0, naive = 0, cov = 0, cnt = 0, loss = 0; const u = [];
+  const step = h >= 7 ? 5 : 3;
+  for (let t = Math.max(120, n - 1 - 730); t + h < n; t += step){
+    const f = forecast(P, t, h, {method, sims: 400, seed: t});
     const y = Math.log((d[t + h].ons * d[t + h].kur) / (d[t].ons * d[t].kur));
     if ((f.lq[1] > 0) === (y > 0)) hit++;
     if (y > 0) naive++;
     if (y >= f.lq[0] && y <= f.lq[2]) cov++;
+    // gerçekleşenin, aralığın yarı genişliğine oranı (1'den küçükse aralığın içinde)
+    u.push(y >= f.lq[1] ? (y - f.lq[1]) / Math.max(1e-9, f.lq[2] - f.lq[1]) : (f.lq[1] - y) / Math.max(1e-9, f.lq[1] - f.lq[0]));
     loss += pinball(f.lq, y); cnt++;
   }
-  return cnt ? {hit: hit / cnt, naive: naive / cnt, cov: cov / cnt, loss: loss / cnt * 1e4, cnt} : null;
+  if (!cnt) return null;
+  // Aralık katsayısı: %80 isabet için gereken genişleme; az bağımsız gözlem varsa 1'e doğru çekilir
+  u.sort((a, b) => a - b);
+  const rawK = u[Math.min(cnt - 1, Math.floor(0.8 * cnt))], nEff = cnt * step / h;
+  const scale = Math.max(0.7, Math.min(2, 1 + (rawK - 1) * nEff / (nEff + 10)));
+  return {hit: hit / cnt, naive: naive / cnt, cov: cov / cnt, loss: loss / cnt * 1e4, cnt, scale};
 }
 // Hafızadan öğrenme 1: haber puanı → ertesi gün ons getirisi (regresyon)
 function learnNews(d, P){
@@ -327,7 +347,8 @@ function learnNews(d, P){
 }
 // Hafızadan öğrenme 2: kendi tahmin günlüğündeki sistematik sapma
 function learnBias(h){
-  const done = store.get('log', []).filter(x => x.h === h && x.act != null);
+  // Yalnızca düzeltilmiş modelin (v2) tahminleri kullanılır; eski tahminlerdeki yukarı sapma artık geçerli değil
+  const done = store.get('log', []).filter(x => x.h === h && x.act != null && x.v >= 2);
   if (done.length < 5) return {n: done.length, bias: 0};
   const b = done.reduce((a, x) => a + (Math.log(1 + x.act) - Math.log(1 + x.med)), 0) / done.length;
   return {n: done.length, bias: b * done.length / (done.length + 20)};
@@ -369,7 +390,7 @@ function explain(m, avgVol){
 }
 
 /* ---------- ÇİZİM ---------- */
-let DATA = null, PREP = null, RANGE = 365, CHOSEN = {1: 'denge', 7: 'denge', 30: 'denge'}, BT = {};
+let DATA = null, PREP = null, RANGE = 365, CHOSEN = {1: 'denge', 7: 'denge', 30: 'denge'}, BT = {}, SCALE = {1: 1, 7: 1, 30: 1};
 const prem = () => 1 + (store.get('prem', 0) || 0) / 100;
 function drawChart(){
   const s = $('chart'); if (!DATA) return;
@@ -391,7 +412,7 @@ const HZ = [[1, '24 saat'], [7, '1 hafta'], [30, '1 ay']];
 function renderForecasts(price, news, beta){
   const end = PREP.ro.length, res = {};
   $('fc').innerHTML = HZ.map(([h, name]) => {
-    const lb = learnBias(h), f = forecast(PREP, end, h, {method: CHOSEN[h], news, beta, bias: lb.bias}); res[h] = f;
+    const lb = learnBias(h), f = forecast(PREP, end, h, {method: CHOSEN[h], news, beta, bias: lb.bias, scale: SCALE[h]}); res[h] = f;
     const span = Math.max(Math.abs(f.lo), Math.abs(f.hi)) * 1.15 || 0.01, pos = v => ((v + span) / (2 * span) * 100).toFixed(1);
     return `<div class="card">
       <div class="row"><h3>${name}</h3><span class="pct ${f.med >= 0 ? 'up' : 'dn'}">${pct(f.med)}</span></div>
@@ -466,11 +487,12 @@ function renderBacktest(){
 function renderLearn(nl){
   const lb = HZ.map(([h, n]) => { const b = learnBias(h); return b.n >= 5 ? `${n}: ${b.n} tahmin, düzeltme ${pct(Math.exp(b.bias) - 1, 2)}` : `${n}: ${b.n}/5 tahmin` });
   $('learn').innerHTML = `<p class="why" style="margin:0"><b>Haber etkisi.</b> ${nl.beta == null ? `Öğreniliyor: ${nl.n}/20 günlük haber kaydı var. O zamana kadar varsayılan küçük bir etki kullanılıyor.` : `${nl.n} günlük kayda göre olumlu haber günlerinde ons ertesi gün ortalama ${pct(Math.exp(nl.beta) - 1, 2)} kadar ${nl.beta >= 0 ? 'yükseliyor' : 'düşüyor'}. Tahminler bu öğrenilen etkiyi kullanıyor.`}</p>
+  <p class="why"><b>Aralık ayarı.</b> Geriye dönük testte gerçek fiyatın %80 aralığa düşme oranına göre aralıklar ${HZ.map(([h, n]) => `${n} ×${fmt(SCALE[h], 2)}`).join(', ')} ile ölçeklendi (1'den büyükse model belirsizliği küçümsüyordu, genişletildi).</p>
   <p class="why"><b>Sapma düzeltmesi.</b> Kendi tahminlerin sistematik olarak düşük ya da yüksek çıkıyorsa model kendini düzeltir. ${lb.join(' · ')}</p>`;
 }
 function updateLog(rawPrice, fc){
   const log = store.get('log', []), today = dayKey(Date.now());
-  for (const [h] of HZ) if (!log.find(x => x.d === today && x.h === h)) log.push({d: today, h, p: rawPrice, med: fc[h].med, lo: fc[h].lo, hi: fc[h].hi, m: CHOSEN[h]});
+  for (const [h] of HZ) if (!log.find(x => x.d === today && x.h === h)) log.push({d: today, h, p: rawPrice, med: fc[h].med, lo: fc[h].lo, hi: fc[h].hi, m: CHOSEN[h], v: 2});
   const lastT = DATA[DATA.length - 1].t;
   for (const x of log) if (x.act == null){ const t = Date.parse(x.d) + x.h * 864e5; if (t < lastT){ const row = DATA.find(r => r.t >= t); if (row) x.act = row.ons * row.kur / OZ / x.p - 1 } }
   store.set('log', log.slice(-400));
@@ -499,7 +521,7 @@ async function load(){
     $('ceyrek').textContent = 'Çeyrek (has) ≈ ' + fmt(price * 1.6065, 0) + ' ₺';
     $('stamp').textContent = 'Güncelleme: ' + new Date().toLocaleTimeString(TR, {hour: '2-digit', minute: '2-digit'}) + ' · kaynak ' + SOURCE;
     // en iyi yöntemi seç (geriye dönük test)
-    for (const [h] of HZ){ BT[h] = {}; let best = null; for (const m in METHODS){ const b = backtest(d, PREP, h, m); BT[h][m] = b; if (b && (!best || b.loss < BT[h][best].loss)) best = m } if (best) CHOSEN[h] = best }
+    for (const [h] of HZ){ BT[h] = {}; let best = null; for (const m in METHODS){ const b = backtest(d, PREP, h, m); BT[h][m] = b; if (b && (!best || b.loss < BT[h][best].loss)) best = m } if (best){ CHOSEN[h] = best; SCALE[h] = BT[h][best].scale } }
     const N = await newsP; renderNews(N);
     const nl = learnNews(d, PREP);
     const fc = renderForecasts(price, N.ok ? N.score : 0, nl.beta ?? undefined);
