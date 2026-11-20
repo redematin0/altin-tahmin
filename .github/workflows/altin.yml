@@ -66,7 +66,7 @@ jobs:
       - name: Siteyi hazırla
         run: |
           mkdir -p _site/data
-          cp index.html manifest.webmanifest sw.js icon-192.png icon-512.png _site/
+          cp index.html manifest.webmanifest sw.js icon-180.png icon-192.png icon-512.png _site/
           cp data/*.json _site/data/ 2>/dev/null || true
           rm -f _site/data/telegram.json _site/data/factors.json _site/data/backtest.json
 
