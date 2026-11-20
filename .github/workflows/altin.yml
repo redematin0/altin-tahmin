@@ -1,0 +1,75 @@
+name: Altın verisi ve site
+
+on:
+  schedule:
+    - cron: '*/20 * * * *'   # her 20 dakikada bir (GitHub bazen birkaç dakika geciktirir)
+  workflow_dispatch:          # Actions sekmesinden elle çalıştırmak için
+  push:
+    branches: [main]
+
+permissions:
+  contents: write   # hafızayı "state" dalına yazmak için
+  pages: write
+  id-token: write
+
+concurrency:
+  group: altin
+  cancel-in-progress: false
+
+jobs:
+  calis:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Hafızayı getir (state dalı)
+        run: |
+          mkdir -p data
+          if git ls-remote --exit-code origin state >/dev/null 2>&1; then
+            git fetch --depth=1 origin state
+            git archive FETCH_HEAD | tar -x -C data
+          fi
+          ls -la data
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - run: pip install --quiet numpy
+
+      - name: Veri topla, tahmin üret, Telegram
+        continue-on-error: true
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          SITE_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
+        run: python scripts/collect.py
+
+      - name: Hafızayı kaydet (state dalı, geçmişsiz)
+        run: |
+          cd data
+          git init -q
+          git checkout -q -b state
+          git add -A
+          git -c user.name="altin-bot" -c user.email="actions@users.noreply.github.com" commit -q -m "veri $(date -u +%F' '%H:%M)"
+          git push -q -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" state
+          rm -rf .git
+
+      - name: Siteyi hazırla
+        run: |
+          mkdir -p _site/data
+          cp index.html manifest.webmanifest sw.js icon-192.png icon-512.png _site/
+          cp data/*.json _site/data/ 2>/dev/null || true
+          rm -f _site/data/telegram.json
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - id: deploy
+        uses: actions/deploy-pages@v4

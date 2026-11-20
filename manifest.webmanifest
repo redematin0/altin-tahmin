@@ -1,0 +1,15 @@
+{
+  "name": "Altın Tahmin",
+  "short_name": "Altın",
+  "description": "Gram altın takibi, tahmin ve portföy",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#c9a227",
+  "theme_color": "#c9a227",
+  "lang": "tr",
+  "icons": [
+    {"src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable"},
+    {"src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable"}
+  ]
+}
