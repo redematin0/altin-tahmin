@@ -127,7 +127,8 @@ def binance_price(sym):
 
 
 def fred(series_id):
-    txt = http(f'https://fred.stlouisfed.org/graph/fredgraph.csv?id={series_id}').decode('utf-8')
+    start = (NOW - dt.timedelta(days=365 * 9)).date().isoformat()
+    txt = http(f'https://fred.stlouisfed.org/graph/fredgraph.csv?id={series_id}&cosd={start}', timeout=60, tries=1).decode('utf-8')
     out = {}
     for line in txt.strip().splitlines()[1:]:
         d, _, v = line.partition(',')
@@ -158,15 +159,20 @@ def fetch_history():
     if 'ons' not in series or 'kur' not in series:
         raise RuntimeError('Temel fiyat verisi alınamadı: ' + '; '.join(errs))
     # 2) Yardımcı göstergeler: FRED (dolar endeksi, ABD 10 yıllık faiz, VIX); gümüş Yahoo'dan denenir
-    for k, sid in FRED.items():
+    cache = load('factors.json', {})
+    for k, sid in list(FRED.items()) + [('silver', 'SI=F')]:
+        c = cache.get(k)
+        if c and c.get('day') == TODAY:
+            series[k] = c['data']; continue
         try:
-            series[k] = fred(sid); log(f'fred {sid}: {len(series[k])} gün')
+            series[k] = fred(sid) if k != 'silver' else yahoo(sid)[0]
+            cache[k] = {'day': TODAY, 'data': series[k]}
+            log(f'{sid}: {len(series[k])} gün')
         except Exception as e:
-            log('fred', sid, e)
-    try:
-        series['silver'], _ = yahoo('SI=F')
-    except Exception as e:
-        log('gümüş alınamadı', e)
+            log(sid, 'alınamadı:', e)
+            if c:
+                series[k] = c['data']  # dünkü veriyle devam
+    save('factors.json', cache)
     days = sorted(set(series['ons']) & set(series['kur']))
     hist = {'dates': days}
     for k in YAHOO:
@@ -242,8 +248,8 @@ FEEDS = [
     'https://news.google.com/rss/search?q=gold+price&hl=en-US&gl=US&ceid=US:en',
     'https://news.google.com/rss/search?q=Fed+rate+dollar+gold&hl=en-US&gl=US&ceid=US:en',
 ]
-POS = ['rekor', 'yüksel', 'yükseliş', 'artış', 'arttı', 'tırman', 'zirve', 'faiz indirim', 'indirime', 'güvenli liman', 'jeopolitik', 'gerilim', 'savaş', 'saldırı', 'belirsizlik', 'dolar zayıf', 'zayıf dolar', 'merkez bankaları alım', 'talep art', 'rate cut', 'cuts', 'dovish', 'surge', 'soar', 'rally', 'record', 'jump', 'climb', 'safe haven', 'tension', 'war', 'attack', 'uncertainty', 'weak dollar', 'central bank buying', 'gains', 'rises', 'higher']
-NEG = ['düş', 'düşüş', 'geriledi', 'gerile', 'kayıp', 'değer kaybı', 'faiz artır', 'şahin', 'dolar güçlen', 'güçlü dolar', 'kâr satış', 'kar satış', 'ateşkes', 'barış', 'sakinleş', 'rate hike', 'hawkish', 'slump', 'fall', 'falls', 'drop', 'slide', 'tumble', 'strong dollar', 'profit-taking', 'profit taking', 'ceasefire', 'peace', 'lower', 'loses', 'retreat']
+POS = ['rekor', 'yükseldi', 'yükseliş', 'yükseliyor', 'yükselerek', 'arttı', 'tırman', 'zirve', 'faiz indirim', 'indirime', 'güvenli liman', 'jeopolitik', 'gerilim', 'savaş', 'saldırı', 'belirsizlik', 'dolar zayıf', 'zayıf dolar', 'merkez bankaları alım', 'talep art', 'rate cut', 'cuts', 'dovish', 'surge', 'soar', 'rally', 'record', 'jump', 'climb', 'safe haven', 'tension', 'war', 'attack', 'uncertainty', 'weak dollar', 'central bank buying', 'gains', 'rises', 'higher']
+NEG = ['düştü', 'düşüş', 'düşüyor', 'düşerek', 'geriledi', 'geriliyor', 'geri çekil', 'değer kaybetti', 'sert kayıp', 'faiz artır', 'şahin', 'dolar güçlen', 'güçlü dolar', 'kâr satış', 'kar satış', 'ateşkes', 'barış', 'sakinleş', 'rate hike', 'hawkish', 'slump', 'fall', 'falls', 'drop', 'slide', 'tumble', 'strong dollar', 'profit-taking', 'profit taking', 'ceasefire', 'peace', 'lower', 'loses', 'retreat']
 
 
 def tr_lower(s):
@@ -251,9 +257,12 @@ def tr_lower(s):
 
 
 def score_kw(t):
-    s = tr_lower(t)
-    p = sum(w in s for w in POS)
-    n = sum(w in s for w in NEG)
+    s = ' ' + re.sub(r'[^\wçğıöşü\- ]', ' ', tr_lower(t)) + ' '
+    hit = lambda w: (' ' + w) in s if len(w) > 5 or ' ' in w else re.search(r'\b' + re.escape(w) + r'\b', s) is not None
+    if '?' in t:  # soru başlıkları ("düşecek mi?") yön belirtmez
+        return 0.0
+    p = sum(hit(w) for w in POS)
+    n = sum(hit(w) for w in NEG)
     return (p - n) / (p + n) if p + n else 0.0
 
 
@@ -315,8 +324,11 @@ def fetch_news(store):
     if len(cache) > 1500:
         for k in list(cache)[:len(cache) - 1500]:
             del cache[k]
-    # günlük hafızaya ekle
+    # günlük hafızaya ekle (eski kayıtlar güncel puanlayıcıyla yeniden puanlanır)
     days = store.setdefault('days', {})
+    for h in days.values():
+        for y in h['items']:
+            y['s'] = cache.get(y['t'], round(score_kw(y['t']), 2))
     for x in items:
         d = x['time'][:10]
         h = days.setdefault(d, {'items': []})
@@ -769,9 +781,13 @@ def main():
         news = fetch_news(news)
     cal = fetch_calendar(load('calendar.json', {})) if not OFFLINE else {'events': [{'date': d, 'title': t, 'kind': k} for d, t, k in FIXED]}
 
-    # yöntem seçimi
+    # yöntem seçimi (geriye dönük test ağır: günde bir kez yapılır, sonucu saklanır)
     bt, chosen = {}, {}
-    for h, _ in HZ:
+    cached = load('backtest.json', {})
+    if cached.get('day') == TODAY and set(cached.get('methods', [])) == set(METHODS) and not OFFLINE:
+        bt = cached['bt']; chosen = {int(h): k for h, k in cached['chosen'].items()}
+        log('geriye dönük test bugünkü kayıttan alındı')
+    for h, _ in ([] if bt else HZ):
         bt[str(h)] = {}
         for k in METHODS:
             try:
@@ -780,6 +796,8 @@ def main():
                 log('backtest hata', h, k, ex); bt[str(h)][k] = None
         ok = {k: v for k, v in bt[str(h)].items() if v}
         chosen[h] = min(ok, key=lambda k: ok[k]['loss']) if ok else 'denge'
+    if not cached.get('day') == TODAY or OFFLINE:
+        save('backtest.json', {'day': TODAY, 'methods': list(METHODS), 'bt': bt, 'chosen': {str(h): k for h, k in chosen.items()}})
     log('seçilen yöntemler:', chosen, f'{time.time() - t0:.1f} sn')
 
     mult, n_ev = event_multiplier(P)
