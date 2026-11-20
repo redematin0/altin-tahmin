@@ -212,7 +212,14 @@ const askLink = (p, label) => `<a class="ask" href="${askUrl(p)}" target="_blank
 let F = null, H = null, NEWS = null, CAL = null, LOG = [], RANGE = 90, LIVE = null, RATIO = 1;
 
 /* ---------- VERİ ---------- */
-async function j(name){ const r = await fetch('data/' + name + '?t=' + Date.now(), {cache: 'no-store'}); if (!r.ok) throw new Error(name + ' ' + r.status); return r.json() }
+// Veri önce sitenin kendi data/ klasöründen, olmazsa doğrudan GitHub'daki hafıza dalından (state) okunur
+const RAW = 'https://raw.githubusercontent.com/redematin0/altin-tahmin/state/';
+async function j(name){
+  for (const base of ['data/', RAW]){
+    try{ const r = await fetch(base + name + '?t=' + Date.now(), {cache: 'no-store'}); if (r.ok) return await r.json() }catch(e){}
+  }
+  throw new Error(name + ' bulunamadı');
+}
 async function liveTick(){
   // Sunucu verisi arasında başlık fiyatını canlı tut (Binance, tarayıcıdan)
   try{
