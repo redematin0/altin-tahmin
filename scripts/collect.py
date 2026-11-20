@@ -73,7 +73,7 @@ def yahoo(sym, rng='5y'):
     err = None
     for host in ('query1', 'query2'):
         try:
-            j = get_json(f'https://{host}.finance.yahoo.com/v8/finance/chart/{q}?range={rng}&interval=1d&includePrePost=false')
+            j = json.loads(http(f'https://{host}.finance.yahoo.com/v8/finance/chart/{q}?range={rng}&interval=1d&includePrePost=false', tries=1).decode())
             r = j['chart']['result'][0]
             ts, cl = r['timestamp'], r['indicators']['quote'][0]['close']
             out = {}
@@ -87,36 +87,86 @@ def yahoo(sym, rng='5y'):
     raise err
 
 
-def binance_paxg():
-    j = None
-    for host in ('https://data-api.binance.vision', 'https://api.binance.com'):
-        try:
-            j = get_json(f'{host}/api/v3/klines?symbol=PAXGUSDT&interval=1d&limit=1000')
+BINANCE = ('https://data-api.binance.vision', 'https://api.binance.com')
+
+
+def binance_daily(sym, pages=3):
+    """Binance günlük kapanışları (en fazla ~3000 gün), yalnızca hafta içi günler."""
+    out, end = {}, None
+    for _ in range(pages):
+        j = None
+        for host in BINANCE:
+            try:
+                j = get_json(f'{host}/api/v3/klines?symbol={sym}&interval=1d&limit=1000' + (f'&endTime={end}' if end else ''))
+                break
+            except Exception as e:
+                last = e
+        if j is None:
+            if out:
+                break
+            raise last
+        if not j:
             break
+        for k in j:
+            d = dt.datetime.fromtimestamp(k[0] / 1000, dt.timezone.utc).date()
+            if d.weekday() < 5:
+                out[d.isoformat()] = float(k[4])
+        end = j[0][0] - 1
+        if len(j) < 1000:
+            break
+    return out
+
+
+def binance_price(sym):
+    for host in BINANCE:
+        try:
+            return float(get_json(f'{host}/api/v3/ticker/price?symbol={sym}')['price'])
         except Exception:
             pass
-    if not j:
-        raise RuntimeError('binance yok')
-    return {dt.datetime.fromtimestamp(k[0] / 1000, dt.timezone.utc).date().isoformat(): float(k[4]) for k in j}
+    return None
+
+
+def fred(series_id):
+    txt = http(f'https://fred.stlouisfed.org/graph/fredgraph.csv?id={series_id}').decode('utf-8')
+    out = {}
+    for line in txt.strip().splitlines()[1:]:
+        d, _, v = line.partition(',')
+        try:
+            out[d] = float(v)
+        except ValueError:
+            pass
+    return out
+
+
+FRED = {'dxy': 'DTWEXBGS', 'tnx': 'DGS10', 'vix': 'VIXCLS'}
 
 
 def fetch_history():
     series, live, errs = {}, {}, []
-    for k, sym in YAHOO.items():
+    # 1) Ana fiyatlar: Binance (PAXG = 1 ons altına bağlı, USDT/TRY ≈ dolar kuru); olmazsa Yahoo
+    for k, sym, ysym in (('ons', 'PAXGUSDT', 'GC=F'), ('kur', 'USDTTRY', 'USDTRY=X')):
         try:
-            series[k], live[k] = yahoo(sym)
-            log(f'yahoo {sym}: {len(series[k])} gün')
+            series[k] = binance_daily(sym); live[k] = binance_price(sym)
+            log(f'binance {sym}: {len(series[k])} gün')
         except Exception as e:
             errs.append(f'{sym}: {e}')
-            log('HATA yahoo', sym, e)
-    if 'ons' not in series:
-        try:
-            series['ons'] = binance_paxg(); live['ons'] = None
-            log('ons için Binance PAXG kullanıldı')
-        except Exception as e:
-            errs.append(f'paxg: {e}')
+            try:
+                series[k], live[k] = yahoo(ysym)
+                log(f'yahoo {ysym}: {len(series[k])} gün')
+            except Exception as e2:
+                errs.append(f'{ysym}: {e2}')
     if 'ons' not in series or 'kur' not in series:
         raise RuntimeError('Temel fiyat verisi alınamadı: ' + '; '.join(errs))
+    # 2) Yardımcı göstergeler: FRED (dolar endeksi, ABD 10 yıllık faiz, VIX); gümüş Yahoo'dan denenir
+    for k, sid in FRED.items():
+        try:
+            series[k] = fred(sid); log(f'fred {sid}: {len(series[k])} gün')
+        except Exception as e:
+            log('fred', sid, e)
+    try:
+        series['silver'], _ = yahoo('SI=F')
+    except Exception as e:
+        log('gümüş alınamadı', e)
     days = sorted(set(series['ons']) & set(series['kur']))
     hist = {'dates': days}
     for k in YAHOO:

@@ -56,8 +56,11 @@ jobs:
           git init -q
           git checkout -q -b state
           git add -A
-          git -c user.name="altin-bot" -c user.email="actions@users.noreply.github.com" commit -q -m "veri $(date -u +%F' '%H:%M)"
-          git push -q -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" state
+          if git -c user.name="altin-bot" -c user.email="actions@users.noreply.github.com" commit -q -m "veri $(date -u +%F' '%H:%M)"; then
+            git push -q -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" state
+          else
+            echo "Kaydedilecek veri yok"
+          fi
           rm -rf .git
 
       - name: Siteyi hazırla
