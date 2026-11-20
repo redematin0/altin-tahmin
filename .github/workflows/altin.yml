@@ -38,8 +38,10 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+          cache: pip
 
-      - run: pip install --quiet numpy
+      - name: Kütüphaneleri kur (numpy, statsforecast, arch)
+        run: pip install --quiet -r requirements.txt
 
       - name: Veri topla, tahmin üret, Telegram
         continue-on-error: true
@@ -68,6 +70,8 @@ jobs:
           mkdir -p _site/data
           cp index.html manifest.webmanifest sw.js icon-180.png icon-192.png icon-512.png _site/
           cp data/*.json _site/data/ 2>/dev/null || true
+          mkdir -p _site/vendor
+          curl -fsSL --retry 3 -o _site/vendor/lightweight-charts.js https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js || echo "grafik kütüphanesi indirilemedi (sayfa yedek grafiğe döner)"
           rm -f _site/data/telegram.json _site/data/factors.json _site/data/backtest.json
 
       - uses: actions/upload-pages-artifact@v3

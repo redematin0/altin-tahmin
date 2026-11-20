@@ -42,7 +42,8 @@ header button{background:#1a1508;color:#f3e3a8;border:0}
 .chg{font-weight:600}
 .live{display:inline-block;width:8px;height:8px;border-radius:50%;background:#0b7a55;margin-right:6px;vertical-align:middle}
 .fig{position:relative;height:200px;margin:12px 0 4px}
-.fig svg{position:absolute;inset:0;width:100%;height:100%}
+.fig svg,.fig .lwc{position:absolute;inset:0;width:100%;height:100%}
+.hover{font-size:14px;font-weight:600;min-height:21px;margin-top:10px;color:#1a1508cc;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .seg{display:flex;gap:6px;margin-top:6px;flex-wrap:wrap}
 .seg button{min-height:36px;font-size:13px;padding:0 12px;background:transparent;border:1px solid #1a150855;color:#1a1508}
 .seg button.on{background:#1a1508;color:#f3e3a8}
@@ -113,8 +114,9 @@ code{background:var(--goldB);padding:1px 5px;border-radius:5px;font-size:14px;ov
   <div class="top"><h1 id="ptitle">Gram altın (TL)</h1><button id="refresh" type="button">Yenile</button></div>
   <div class="big" id="price">—</div>
   <div class="sub"><span class="chg" id="chg24">Yükleniyor…</span><span id="ons"></span><span id="kur"></span></div>
-  <div class="fig"><svg id="chart" role="img" aria-label="Gram altın fiyat grafiği ve önümüzdeki ay için tahmin aralığı"></svg></div>
-  <div class="seg" id="range"><button type="button" data-d="45">1 ay</button><button type="button" data-d="90" class="on">3 ay</button><button type="button" data-d="260">1 yıl</button><button type="button" data-d="1300">Tümü</button></div>
+  <div class="hover" id="hover">Grafiğe dokun: o günün fiyatını gör</div>
+  <div class="fig" id="fig"><svg id="chart" role="img" aria-label="Gram altın fiyat grafiği ve önümüzdeki ay için tahmin aralığı"></svg><div id="lwc" class="lwc" hidden></div></div>
+  <div class="seg" id="range"><button type="button" data-d="45">1 ay</button><button type="button" data-d="90" class="on">3 ay</button><button type="button" data-d="260">1 yıl</button><button type="button" data-d="100000">Tümü</button></div>
   <div class="note" style="color:#1a1508aa;margin:8px 0 0" id="stamp"></div>
 </div></header>
 <nav><div class="wrap" id="tabs"><button type="button" data-t="bugun" class="on">Bugün</button><button type="button" data-t="portfoy">Portföy</button><button type="button" data-t="aylar">Aylar</button><button type="button" data-t="karne">Karne</button><button type="button" data-t="ayar">Ayarlar</button></div></nav>
@@ -240,6 +242,7 @@ async function liveTick(){
     if (!ref){ ref = now; store.set('liveBase', {t: F.time, v: now}) }
     LIVE = F.price * now / ref;
     renderHead();
+    if (LW){ const n = H.dates.length; LW.hist.update({time: H.dates[n - 1], value: LIVE}) }
   }catch(e){}
 }
 async function load(){
@@ -297,7 +300,55 @@ function drawChart(){
     <text x="4" y="${Ht - 4}" font-size="12" fill="#1a1508aa">${dt(H.dates[from])}</text>
     <text x="${W - 4}" y="${Ht - 4}" font-size="12" fill="#1a1508aa" text-anchor="end">${endLbl}</text>`;
 }
-const chartObs = new ResizeObserver(drawChart); chartObs.observe($('chart'));
+const chartObs = new ResizeObserver(() => { if (LW) LW.chart.applyOptions({width: $('fig').clientWidth, height: $('fig').clientHeight}); else drawChart() }); chartObs.observe($('fig'));
+
+/* Etkileşimli grafik: TradingView Lightweight Charts (yüklenemezse yukarıdaki basit grafik kullanılır) */
+let LW = null;
+const loadScript = src => new Promise((ok, no) => { const s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = no; document.head.appendChild(s) });
+const LWC_READY = loadScript('vendor/lightweight-charts.js').catch(() => loadScript('https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js')).then(() => !!window.LightweightCharts).catch(() => false);
+function lwcDraw(){
+  const L = window.LightweightCharts, el = $('lwc');
+  if (!LW){
+    el.hidden = false; $('chart').style.display = 'none';
+    const chart = L.createChart(el, {width: $('fig').clientWidth, height: $('fig').clientHeight,
+      layout: {background: {type: 'solid', color: 'transparent'}, textColor: '#1a1508aa', fontFamily: 'Sora, system-ui, sans-serif', fontSize: 11},
+      grid: {vertLines: {visible: false}, horzLines: {color: '#1a150814'}},
+      rightPriceScale: {borderVisible: false, scaleMargins: {top: 0.08, bottom: 0.04}},
+      timeScale: {borderVisible: false, fixLeftEdge: true, fixRightEdge: true},
+      crosshair: {mode: 0, vertLine: {color: '#1a150866', labelVisible: false}, horzLine: {color: '#1a150866', labelBackgroundColor: '#1a1508'}},
+      localization: {locale: 'tr-TR', priceFormatter: p => fmt(p, 0)},
+      handleScale: {axisPressedMouseMove: false}, kineticScroll: {touch: true}});
+    const band = (top, bottom) => chart.addAreaSeries({lineColor: 'rgba(0,0,0,0)', lineWidth: 1, topColor: top, bottomColor: bottom, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false});
+    // Yelpaze: üst sınırlar koyu dolgu, alt sınırlar arka plan rengiyle "maskelenir"
+    const s90 = band('rgba(26,21,8,.13)', 'rgba(26,21,8,.13)'), s75 = band('rgba(26,21,8,.16)', 'rgba(26,21,8,.16)');
+    const s25 = band('rgb(178,143,35)', 'rgb(178,143,35)'), s10 = band('#c9a227', '#c9a227');
+    const hist = chart.addAreaSeries({lineColor: '#1a1508', lineWidth: 2, topColor: 'rgba(26,21,8,.22)', bottomColor: 'rgba(26,21,8,0)', priceLineVisible: false, lastValueVisible: true, crosshairMarkerBackgroundColor: '#1a1508'});
+    const med = chart.addLineSeries({color: '#1a1508', lineWidth: 2, lineStyle: 2, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false});
+    chart.subscribeCrosshairMove(p => {
+      if (!p.time || !p.seriesData){ $('hover').textContent = 'Grafiğe dokun: o günün fiyatını gör'; return }
+      const d = typeof p.time === 'string' ? p.time : `${p.time.year}-${String(p.time.month).padStart(2, '0')}-${String(p.time.day).padStart(2, '0')}`;
+      const h = p.seriesData.get(hist), m50 = p.seriesData.get(med), lo = p.seriesData.get(s10), hi = p.seriesData.get(s90);
+      const ds = new Date(d + 'T12:00:00').toLocaleDateString(TR, {day: 'numeric', month: 'short', year: 'numeric'});
+      $('hover').textContent = h ? `${ds}: ${fmt(h.value, 0)} ₺` : m50 ? `${ds} tahmini: ${fmt(m50.value, 0)} ₺ (${fmt(lo.value, 0)}–${fmt(hi.value, 0)})` : ds;
+    });
+    LW = {chart, hist, med, s10, s25, s75, s90};
+  }
+  const k = prem(), n = H.dates.length;
+  const hd = H.dates.map((d, i) => ({time: d, value: H.ons[i] * H.kur[i] / OZ * k}));
+  hd[n - 1].value = F.price;
+  LW.hist.setData(hd);
+  const fan = F.forecast['21'].fan, last = H.dates[n - 1];
+  const fs = key => [{time: last, value: F.price}].concat(F.futureDays.map((d, i) => ({time: d, value: F.price * (1 + fan[key][i])})));
+  if (fan){ LW.s90.setData(fs('p90')); LW.s75.setData(fs('p75')); LW.s25.setData(fs('p25')); LW.s10.setData(fs('p10')); LW.med.setData(fs('p50')) }
+  lwcRange();
+}
+function lwcRange(){
+  if (!LW) return;
+  const n = H.dates.length, to = F.futureDays[F.futureDays.length - 1];
+  if (RANGE >= n) LW.chart.timeScale().fitContent();
+  else LW.chart.timeScale().setVisibleRange({from: H.dates[Math.max(0, n - RANGE)], to: RANGE <= 260 ? to : H.dates[n - 1]});
+}
+async function chartDraw(){ if (await LWC_READY) lwcDraw(); else drawChart() }
 
 /* ---------- BUGÜN ---------- */
 function renderForecasts(){
@@ -457,7 +508,7 @@ function renderSys(){
   $('sys').textContent = `Son sunucu çalışması: ${new Date(F.time).toLocaleString(TR)}. Fiyat geçmişi ${H.dates.length} işlem günü, haber hafızası ${Object.keys(NEWS.days || {}).length} gün, tahmin günlüğü ${LOG.length} kayıt. Kuyumcu farkı: ${F.premium == null ? 'bilinmiyor' : pct(F.premium, 2)}.`;
   $('logs').textContent = (F.logs || []).join('\n');
 }
-function renderAll(){ renderHead(); drawChart(); renderForecasts(); renderEvents(); renderNews(); renderKapali(); renderAskToday(); renderPortfolio(); renderMonths(); renderKarne(); renderSys(); renderDukkan() }
+function renderAll(){ renderHead(); chartDraw(); renderForecasts(); renderEvents(); renderNews(); renderKapali(); renderAskToday(); renderPortfolio(); renderMonths(); renderKarne(); renderSys(); renderDukkan() }
 
 /* ---------- DÜKKAN FİYATI ---------- */
 function renderDukkan(){
@@ -480,7 +531,7 @@ else if (STANDALONE) $('installTxt').textContent = 'Uygulama ana ekrandan açıl
 
 /* ---------- OLAYLAR ---------- */
 $('refresh').addEventListener('click', load);
-$('range').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; RANGE = +b.dataset.d; for (const x of $('range').children) x.classList.toggle('on', x === b); drawChart() });
+$('range').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; RANGE = +b.dataset.d; for (const x of $('range').children) x.classList.toggle('on', x === b); if (LW) lwcRange(); else drawChart() });
 $('tabs').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; for (const x of $('tabs').children) x.classList.toggle('on', x === b); for (const s of document.querySelectorAll('main section')) s.hidden = s.id !== b.dataset.t; try{ sessionStorage.setItem('alt_tab', b.dataset.t) }catch(err){} });
 document.addEventListener('click', e => { const a = e.target.closest('a.ask'); if (!a) return; try{ navigator.clipboard.writeText(a.dataset.p).then(() => { a.dataset.l ||= a.textContent; a.textContent = 'Açılıyor · soru panoya da kopyalandı'; setTimeout(() => a.textContent = a.dataset.l, 4000) }, () => {}) }catch(err){} });
 try{ const t = sessionStorage.getItem('alt_tab'); if (t) $('tabs').querySelector(`[data-t="${t}"]`)?.click() }catch(e){}

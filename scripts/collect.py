@@ -16,6 +16,16 @@ ANTHROPIC_API_KEY (isteğe bağlı, haber puanlaması için), OFFLINE=1 (test).
 """
 import json, math, os, re, sys, time, datetime as dt, email.utils, urllib.request, urllib.parse, xml.etree.ElementTree as ET
 import numpy as np
+try:
+    from statsforecast.models import AutoARIMA, AutoETS
+    HAS_SF = True
+except Exception:
+    HAS_SF = False
+try:
+    from arch import arch_model
+    HAS_ARCH = True
+except Exception:
+    HAS_ARCH = False
 
 DATA = os.environ.get('DATA_DIR', 'data')
 OZ = 31.1035
@@ -480,6 +490,49 @@ def factor_mu(P, e, h):
     return float(z @ beta) / h
 
 
+_SCACHE, _GCACHE = {}, {}
+
+
+def stat_mu(P, e, h):
+    """statsforecast: ons için AutoARIMA, kur için AutoETS. 20 günde bir yeniden kurulur (önbellek)."""
+    key = e // 20
+    if key not in _SCACHE:
+        lo = np.log(P['ons'][max(0, e - 500):e + 1]); lk = np.log(P['kur'][max(0, e - 500):e + 1])
+        try:
+            fo = np.asarray(AutoARIMA().forecast(y=lo, h=21)['mean']) - lo[-1]
+            fk = np.asarray(AutoETS(model='ZZZ').forecast(y=lk, h=21)['mean']) - lk[-1]
+        except Exception as ex:
+            log('statsforecast hata', ex); fo = fk = np.zeros(21)
+        _SCACHE[key] = (fo, fk)
+    fo, fk = _SCACHE[key]
+    return float(np.clip(fo[h - 1] / h, -0.003, 0.003)), float(np.clip(fk[h - 1] / h, -0.002, 0.005))
+
+
+def garch_sigma(P, e, h):
+    """arch: Student-t GARCH(1,1) ile ons ve kur için gün gün oynaklık tahmini.
+    Parametreler 20 günde bir tahmin edilir, aradaki günlerde sabit parametreyle güncellenir."""
+    key = e // 20
+    if key not in _GCACHE:
+        prm = {}
+        for k in ('ro', 'rk'):
+            y = P[k][max(0, e - 1000):e] * 100
+            try:
+                prm[k] = arch_model(y, mean='Zero', vol='GARCH', p=1, q=1, dist='t', rescale=False).fit(disp='off', show_warning=False).params
+            except Exception as ex:
+                log('arch hata', ex); prm[k] = None
+        _GCACHE[key] = prm
+    out = []
+    for k, v in (('ro', 'vo'), ('rk', 'vk')):
+        p = _GCACHE[key][k]
+        if p is None:
+            out.append(np.full(h, math.sqrt(P[v][e]))); continue
+        y = P[k][max(0, e - 1000):e] * 100
+        r = arch_model(y, mean='Zero', vol='GARCH', p=1, q=1, dist='t', rescale=False).fix(p)
+        var = np.asarray(r.forecast(horizon=h, reindex=False).variance)[-1] / 1e4
+        out.append(np.sqrt(var[:h]))
+    return out
+
+
 def kur_mu(P, e):
     return 0.7 * m(P['rk'], e - 21, e) + 0.3 * m(P['rk'], e - 126, e)
 
@@ -491,6 +544,11 @@ METHODS = {
     'uzun': ('Uzun trend', lambda P, e, h: (0.5 * m(P['ro'], e - 252, e), m(P['rk'], e - 252, e))),
     'faktor': ('Faktör modeli', lambda P, e, h: (factor_mu(P, e, h), kur_mu(P, e))),
 }
+if HAS_SF:
+    METHODS['istatistik'] = ('İstatistik (ARIMA/ETS)', stat_mu)
+if HAS_ARCH:
+    METHODS['garch'] = ('GARCH oynaklık', lambda P, e, h: (0.25 * m(P['ro'], e - 252, e), kur_mu(P, e)))
+VOL_GARCH = {'garch'}
 
 
 def forecast(P, e, h, method='denge', sims=4000, seed=7, news=0.0, beta=None, bias=0.0, scale=1.0, ev_mult=None, path=False):
@@ -500,8 +558,11 @@ def forecast(P, e, h, method='denge', sims=4000, seed=7, news=0.0, beta=None, bi
     zo = ro[m0:e] / np.sqrt(vo[m0:e]); zk = rk[m0:e] / np.sqrt(vk[m0:e])
     zo = zo - zo.mean(); zk = zk - zk.mean()  # kalıntılardaki geçmiş trend simülasyona gizli eğilim taşımasın
     lo2, lk2 = np.mean(ro[m0:e] ** 2), np.mean(rk[m0:e] ** 2)
-    f = PHI ** np.arange(h)
-    sO = np.sqrt(lo2 + (vo[e] - lo2) * f); sK = np.sqrt(lk2 + (vk[e] - lk2) * f)
+    if method in VOL_GARCH and HAS_ARCH:
+        sO, sK = garch_sigma(P, e, h)
+    else:
+        f = PHI ** np.arange(h)
+        sO = np.sqrt(lo2 + (vo[e] - lo2) * f); sK = np.sqrt(lk2 + (vk[e] - lk2) * f)
     if ev_mult is not None:
         sO = sO * ev_mult[:h]; sK = sK * np.sqrt(ev_mult[:h])
     muO, muK = METHODS[method][1](P, e, h)
@@ -798,6 +859,7 @@ def main():
         chosen[h] = min(ok, key=lambda k: ok[k]['loss']) if ok else 'denge'
     if not cached.get('day') == TODAY or OFFLINE:
         save('backtest.json', {'day': TODAY, 'methods': list(METHODS), 'bt': bt, 'chosen': {str(h): k for h, k in chosen.items()}})
+    log(f'kütüphaneler: statsforecast={HAS_SF}, arch={HAS_ARCH}')
     log('seçilen yöntemler:', chosen, f'{time.time() - t0:.1f} sn')
 
     mult, n_ev = event_multiplier(P)
