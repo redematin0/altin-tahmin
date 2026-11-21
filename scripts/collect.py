@@ -216,7 +216,8 @@ def norm(s):
 
 
 KAPALI = {'gram': ['gra', 'gramaltin', 'gramaltn'], 'ceyrek': ['ceyrekaltin', 'ceyrek'], 'yarim': ['yarimaltin', 'yarim'],
-          'tam': ['tamaltin', 'tam'], 'cumhuriyet': ['cumhuriyetaltini', 'cumhuriyet'], 'ata': ['ataaltin', 'ata']}
+          'tam': ['tamaltin', 'tam'], 'cumhuriyet': ['cumhuriyetaltini', 'cumhuriyet'], 'ata': ['ataaltin', 'ata'],
+          'b22': ['22ayarbilezik', 'yia', '22ayar', 'bilezik']}
 
 
 def fetch_kapali():
@@ -248,6 +249,149 @@ def fetch_kapali():
             log('kapalıçarşı:', ', '.join(out))
             return {'kaynak': url.split('/')[2], 'guncelleme': upd, 'fiyat': out}
     return None
+
+
+SRC_AD = {'akod': 'AKOD (Antalya Kuyumcular Odası)', 'kapali': 'Kapalıçarşı', 'altinkaynak': 'Altınkaynak'}
+PROD_AD = {'gram': 'Gram altın (24 ayar)', 'b22': '22 ayar (gram)', 'ceyrek': 'Çeyrek', 'yarim': 'Yarım', 'tam': 'Tam', 'cumhuriyet': 'Cumhuriyet'}
+
+
+def fetch_akod():
+    """Antalya Kuyumcular Odası tavsiye satış fiyatları (akod.org.tr/api/prices)."""
+    j = get_json('https://akod.org.tr/api/prices')
+    cmap = {'B_T': 'b22', 'C': 'ceyrek', 'Y': 'yarim', 'T': 'tam', 'A': 'cumhuriyet'}
+    out = {}
+    for p in j.get('prices', []):
+        k = cmap.get(p.get('code'))
+        if k and p.get('price') and p.get('currency') == '₺':
+            out[k] = {'al': None, 'sat': float(p['price'])}
+    log('AKOD:', ', '.join(f'{k} {v["sat"]:.0f}' for k, v in out.items()))
+    return {'fiyat': out, 'guncelleme': j.get('updatedAt')}
+
+
+def fetch_altinkaynak():
+    j = get_json('https://static.altinkaynak.com/public/Gold')
+    log('Altınkaynak ürünleri:', '; '.join(f"{x.get('Kod')}={x.get('Aciklama')}" for x in j)[:600])
+    out = {}
+    for x in j:
+        a = norm(x.get('Aciklama', '')); k = None
+        if x.get('Kod') == 'HH_T' or a == 'has':
+            k = 'gram'
+        elif 'ceyrek' in a and 'eski' not in a:
+            k = 'ceyrek'
+        elif 'yarim' in a and 'eski' not in a:
+            k = 'yarim'
+        elif a.startswith('tam') and 'eski' not in a:
+            k = 'tam'
+        elif 'cumhuriyet' in a or a in ('ata', 'ataaltin', 'ataliras'):
+            k = 'cumhuriyet'
+        elif '22' in a and ('ayar' in a or 'bilezik' in a):
+            k = 'b22'
+        if k and k not in out:
+            try:
+                out[k] = {'al': tr_num(x['Alis']), 'sat': tr_num(x['Satis'])}
+            except Exception:
+                pass
+    return {'fiyat': out, 'guncelleme': j[0].get('GuncellenmeZamani') if j else None}
+
+
+def collect_sources(kap):
+    src = {}
+    if kap and kap.get('fiyat'):
+        src['kapali'] = {'fiyat': kap['fiyat'], 'guncelleme': kap.get('guncelleme')}
+    for k, fn in (('akod', fetch_akod), ('altinkaynak', fetch_altinkaynak)):
+        try:
+            r = fn()
+            if r['fiyat']:
+                src[k] = r
+        except Exception as e:
+            log(k, 'alınamadı:', e)
+    return src
+
+
+def source_stats(src, store):
+    """Kaynaklar arası fiyat farkları: anlık en ucuz, Kapalıçarşı'ya göre ortalama fark, alış-satış makası, kaç kez en ucuz."""
+    hist = store.setdefault('hist', [])
+    if src:
+        hist.append({'t': NOW.isoformat(timespec='minutes'), 'p': {s: {k: [v.get('al'), v['sat']] for k, v in d['fiyat'].items()} for s, d in src.items()}})
+    cut = (NOW - dt.timedelta(days=120)).isoformat()
+    store['hist'] = hist = [h for h in hist if h['t'] >= cut]
+    store['latest'] = {s: {**d, 'zaman': NOW.isoformat(timespec='minutes')} for s, d in src.items()}
+    stats = {}
+    for prod in PROD_AD:
+        now = {s: d['fiyat'][prod] for s, d in src.items() if prod in d['fiyat']}
+        st = {'now': {s: v for s, v in now.items()}, 'src': {}}
+        if now:
+            st['cheapest'] = min(now, key=lambda s: now[s]['sat'])
+        recent = [h for h in hist if h['t'] >= (NOW - dt.timedelta(days=30)).isoformat()]
+        for s in SRC_AD:
+            diffs, spreads, wins, n = [], [], 0, 0
+            for h in recent:
+                p = h['p']
+                if prod not in p.get(s, {}):
+                    continue
+                sat = p[s][prod][1]; al = p[s][prod][0]
+                kc = p.get('kapali', {}).get(prod)
+                if kc and s != 'kapali':
+                    diffs.append(sat / kc[1] - 1)
+                if al:
+                    spreads.append((sat - al) / sat)
+                cands = {x: p[x][prod][1] for x in p if prod in p[x]}
+                if len(cands) >= 2:
+                    n += 1; wins += min(cands, key=cands.get) == s
+            if diffs or spreads or n:
+                st['src'][s] = {'farkKC': float(np.mean(diffs)) if diffs else None, 'makas': float(np.mean(spreads)) if spreads else None,
+                                'enUcuzOran': wins / n if n else None, 'n': len(diffs) or n}
+        stats[prod] = st
+    store['stats'] = stats
+    store['adlar'] = {'kaynak': SRC_AD, 'urun': PROD_AD}
+    return store
+
+
+def antalya_ratio(src):
+    """AKOD ziynet fiyatlarının Kapalıçarşı satışına oranı: Antalya'nın İstanbul'a göre ne kadar farklı olduğu."""
+    a, k = src.get('akod', {}).get('fiyat', {}), src.get('kapali', {}).get('fiyat', {})
+    r = [a[p]['sat'] / k[p]['sat'] for p in ('ceyrek', 'yarim', 'tam') if p in a and p in k and k[p]['sat']]
+    if not r:
+        return None
+    v = float(np.median(r))
+    return v if 0.93 < v < 1.08 else None
+
+
+def build_report(L, P):
+    """Tahmin–gerçekleşen karşılaştırma raporu."""
+    rep = {}
+    for h, name in HZ:
+        done = sorted([x for x in L if x['h'] == h and x.get('act') is not None], key=lambda x: x['d'])
+        if not done:
+            rep[str(h)] = {'n': 0, 'name': name}; continue
+        err = [x['act'] - x['med'] for x in done]
+        last = done[-30:]; e30 = [x['act'] - x['med'] for x in last]
+        rep[str(h)] = {'name': name, 'n': len(done), 'mae': float(np.mean(np.abs(e30))), 'bias': float(np.mean(e30)),
+                       'maeAll': float(np.mean(np.abs(err))), 'yon': float(np.mean([(x['act'] > 0) == (x['med'] > 0) for x in last])),
+                       'aralik': float(np.mean([x['lo'] <= x['act'] <= x['hi'] for x in last])),
+                       'trend': (float(np.mean(np.abs(e30[-5:]))) if len(e30) >= 10 else None, float(np.mean(np.abs(e30[:5]))) if len(e30) >= 10 else None),
+                       'son': [{k: x.get(k) for k in ('d', 'dAct', 'med', 'lo', 'hi', 'act', 'p')} for x in done[-15:]]}
+    # okunabilir özet
+    lines = []
+    r1 = rep.get('1', {})
+    if r1.get('n'):
+        x = r1['son'][-1]
+        lines.append(f"Son 24 saatlik tahmin ({x['d']}): {fmt_pct(x['med'], 2)} demiştik, gerçekleşen {fmt_pct(x['act'], 2)}; fark {fmt_pct(x['act'] - x['med'], 2)}.")
+    for h, name in HZ:
+        r = rep[str(h)]
+        if r.get('n', 0) >= 3:
+            yon = 'olduğundan düşük' if r['bias'] > 0.0005 else 'olduğundan yüksek' if r['bias'] < -0.0005 else 'dengeli'
+            lines.append(f"{name}: son {min(30, r['n'])} tahminde ortalama sapma %{abs(r['mae']) * 100:.2f}".replace('.', ',') + f"; model fiyatı {yon} tahmin ediyor"
+                         f"{'' if yon == 'dengeli' else ' ve bunu otomatik düzeltiyor'}. Yön isabeti %{r['yon'] * 100:.0f}, aralık isabeti %{r['aralik'] * 100:.0f}.")
+            t = r['trend']
+            if t[0] is not None:
+                lines.append(f"{name}: sapma ilk tahminlerde %{t[1] * 100:.2f} iken son tahminlerde %{t[0] * 100:.2f}".replace('.', ',') + f" — {'iyileşiyor' if t[0] < t[1] else 'iyileşmiyor'}.")
+        elif r.get('n', 0):
+            lines.append(f"{name}: {r['n']} sonuç var; güvenilir istatistik için en az 3 gerekiyor.")
+    if not lines:
+        lines.append('Henüz süresi dolmuş tahmin yok. İlk 24 saatlik sonuç yarın gelecek; model sapmasını ölçüp kendini bundan sonra düzeltecek.')
+    rep['ozet'] = lines
+    return rep
 
 
 # ---------------------------------------------------------------- 3. HABERLER
@@ -668,10 +812,12 @@ def update_log(L, P, price, fc, H):
 
 def learn_bias(L, h):
     done = [x for x in L if x['h'] == h and x.get('act') is not None and x.get('v', 0) >= 3]
-    if len(done) < 5:
+    if len(done) < 3:
         return {'n': len(done), 'bias': 0.0}
-    b = sum(math.log1p(x['act']) - math.log1p(x['med']) for x in done) / len(done)
-    return {'n': len(done), 'bias': b * len(done) / (len(done) + 20)}
+    done = done[-40:]  # piyasa değişir: son 40 sonuç, yenilere daha çok ağırlık
+    w = np.array([0.95 ** (len(done) - 1 - i) for i in range(len(done))])
+    b = float(np.sum(w * np.array([math.log1p(x['act']) - math.log1p(x['med']) for x in done])) / w.sum())
+    return {'n': len(done), 'bias': b * len(done) / (len(done) + 8)}
 
 
 # ---------------------------------------------------------------- 6. TELEGRAM
@@ -835,7 +981,17 @@ def main():
         prem = kap['fiyat']['gram']['sat'] / gram_calc - 1
         if not -0.05 < prem < 0.08:
             log('kuyumcu farkı makul değil, yok sayıldı', prem); prem = None
+    src = {} if OFFLINE else collect_sources(kap)
+    srcs = source_stats(src, load('sources.json', {}))
+    ratio = antalya_ratio(src)
+    base, base_note = 'hesap', 'ons × kur hesabı'
+    if prem is not None:
+        base, base_note = 'kapali', 'Kapalıçarşı satış'
+    if ratio is not None and prem is not None:
+        prem = (1 + prem) * ratio - 1
+        base, base_note = 'akod', f'Antalya: Kapalıçarşı gram × AKOD ziynet farkı ({fmt_pct(ratio - 1, 2)})'
     price = gram_calc * (1 + (prem or 0))
+    log('baz fiyat:', base_note, f'{price:.2f}')
 
     news = load('news.json', {}) if not OFFLINE else load('news.json', {'days': {}})
     if not OFFLINE:
@@ -885,12 +1041,13 @@ def main():
            'chg1d': chg1d, 'forecast': fc, 'futureDays': fut,
            'backtest': {h: {k: v for k, v in d.items()} for h, d in bt.items()},
            'learn': {'news': nl, 'eventMult': mult, 'eventN': n_ev, 'bias': {str(h): learn_bias(L, h) for h, _ in HZ}},
-           'kapali': kap, 'methods': {k: v[0] for k, v in METHODS.items()}, 'logs': LOGS[-40:]}
+           'kapali': kap, 'base': base, 'baseNote': base_note, 'antalyaRatio': ratio, 'report': build_report(L, P), 'methods': {k: v[0] for k, v in METHODS.items()}, 'logs': LOGS[-40:]}
     save('history.json', {k: v if k == 'dates' else [None if x is None else round(float(x), 4) for x in v] for k, v in H.items()})
     save('forecast.json', out)
     save('news.json', news)
     save('calendar.json', cal)
     save('log.json', L)
+    save('sources.json', srcs)
     st = load('telegram.json', {})
     S = {'price': price, 'ons': ons, 'kur': kur, 'chg1d': chg1d, 'forecast': fc, 'events': cal['events'], 'news': news.get('latest', []),
          'site': os.environ.get('SITE_URL', '')}

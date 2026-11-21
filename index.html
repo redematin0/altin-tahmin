@@ -95,6 +95,9 @@ th,td{padding:8px 4px;border-bottom:1px solid var(--line);text-align:right;white
 th:first-child,td:first-child{text-align:left}
 th{font-weight:600;color:var(--mut);font-size:13px}
 .scroll{overflow-x:auto}
+.src{display:grid;grid-template-columns:1fr auto;gap:2px 10px;padding:10px 0;border-top:1px solid var(--line);align-items:baseline}
+.src:first-of-type{border-top:0}.src b{white-space:nowrap}.src .prob{grid-column:1/-1;font-size:13px}
+.best{display:inline-block;font-size:12px;font-weight:700;padding:1px 8px;border-radius:99px;background:var(--up);color:#fff;margin-left:6px;vertical-align:middle}
 .err{background:var(--dnA);border-color:var(--dn)}
 .fine{font-size:13px;color:var(--mut);margin-top:24px}
 .form{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;align-items:end}
@@ -121,7 +124,7 @@ code{background:var(--goldB);padding:1px 5px;border-radius:5px;font-size:14px;ov
   <div class="seg" id="range"><button type="button" data-d="45">1 ay</button><button type="button" data-d="90" class="on">3 ay</button><button type="button" data-d="260">1 yıl</button><button type="button" data-d="100000">Tümü</button></div>
   <div class="note" style="color:#1a1508aa;margin:8px 0 0" id="stamp"></div>
 </div></header>
-<nav><div class="wrap" id="tabs"><button type="button" data-t="bugun" class="on">Bugün</button><button type="button" data-t="portfoy">Portföy</button><button type="button" data-t="aylar">Aylar</button><button type="button" data-t="karne">Karne</button><button type="button" data-t="ayar">Ayarlar</button></div></nav>
+<nav><div class="wrap" id="tabs"><button type="button" data-t="bugun" class="on">Bugün</button><button type="button" data-t="fiyatlar">Fiyatlar</button><button type="button" data-t="portfoy">Portföy</button><button type="button" data-t="karne">Rapor</button><button type="button" data-t="aylar">Aylar</button><button type="button" data-t="ayar">Ayarlar</button></div></nav>
 
 <main class="wrap">
   <div id="status"></div>
@@ -141,8 +144,16 @@ code{background:var(--goldB);padding:1px 5px;border-radius:5px;font-size:14px;ov
       <div class="meter"><i id="needle" style="left:50%"></i></div>
       <ul class="news" id="news"></ul>
     </div>
-    <h2>Kapalıçarşı</h2>
-    <div class="card scroll"><table id="kapali"><thead><tr><th>Ürün</th><th>Alış</th><th>Satış</th></tr></thead><tbody></tbody></table></div>
+    <h2>En ucuz nerede?</h2>
+    <p class="note">Satış fiyatları: AKOD (Antalya), Kapalıçarşı ve Altınkaynak.</p>
+    <div class="card" id="cheapSum"></div>
+  </section>
+
+  <section id="fiyatlar" hidden>
+    <h2>Fiyat karşılaştırması</h2>
+    <p class="note" id="srcNote">Her ürün için kaynakların satış fiyatı. En ucuz olan işaretlenir. "Fark" Kapalıçarşı'ya göre son 30 günün ortalamasıdır; "makas" alış ile satış arasındaki farktır.</p>
+    <div class="cards" id="srcCards"></div>
+    <p class="note" style="margin-top:12px">AKOD yalnızca tavsiye satış fiyatı yayınlar; gerçek dükkan fiyatı bundan biraz farklı olabilir. İstatistikler her sunucu çalışmasında (günde birkaç kez) kaydedilen fiyatlardan çıkar ve zamanla güçlenir.</p>
   </section>
 
   <section id="portfoy" hidden>
@@ -169,10 +180,19 @@ code{background:var(--goldB);padding:1px 5px;border-radius:5px;font-size:14px;ov
   </section>
 
   <section id="karne" hidden>
-    <h2>Hangi yöntem ne kadar tutuyor?</h2>
+    <h2>Tahmin raporu</h2>
+    <p class="note">Model her gün tahminini kaydeder; süresi dolunca gerçekleşen fiyatla karşılaştırır, sapmayı ölçer ve kendini düzeltir.</p>
+    <div class="card" id="repSum"></div>
+    <div class="card scroll" style="margin-top:12px"><table id="repTab"><thead><tr><th>Süre</th><th>Sonuç</th><th>Ort. sapma</th><th>Eğilim</th><th>Yön</th><th>Aralık</th></tr></thead><tbody></tbody></table></div>
+    <h2>24 saatlik tahminler ve gerçekleşen</h2>
+    <p class="note">Gri bant tahmin aralığı, siyah çizgi tahmin, nokta gerçekleşen. Nokta çizgiye ne kadar yakınsa tahmin o kadar iyi.</p>
+    <div class="card"><div class="fig" style="height:220px;margin:0"><svg id="repChart" role="img" aria-label="24 saatlik tahminler ve gerçekleşen değişimler"></svg></div></div>
+    <details class="card" style="margin-top:24px"><summary style="min-height:44px;display:flex;align-items:center;font-weight:600">Yöntem karşılaştırması (geçmişe dönük test)</summary>
+    <p class="note">Her yöntem son iki yıla geri götürülüp, sonrasını görmeden tahmin yaptırıldı. Hata puanı en düşük olan o süre için kullanılır.</p>
     <p class="note">Her yöntem son iki yıla geri götürülüp, sonrasını görmeden tahmin yaptırıldı. Hata puanı en düşük olan o süre için kullanılır.</p>
     <div class="card scroll"><table id="bt"><thead><tr><th>Süre / yöntem</th><th>Hata</th><th>Yön</th><th>Aralık</th></tr></thead><tbody></tbody></table></div>
     <p class="note" style="margin-top:8px">Hata: düşük olan daha iyi. Yön: yönü doğru bilme oranı. Aralık: gerçek fiyatın %80 aralığa düşme oranı, ayar öncesi (ideali %80). "Hep yukarı" deseydin yön isabetin <span id="naive">—</span> olurdu.</p>
+    </details>
     <h2>Öğrenilenler</h2>
     <div class="card" id="learn"></div>
     <h2>Tahmin günlüğü</h2>
@@ -205,7 +225,7 @@ code{background:var(--goldB);padding:1px 5px;border-radius:5px;font-size:14px;ov
     <div class="card"><p class="note" id="sys"></p><details><summary>Son çalışma kaydı</summary><pre id="logs" style="font-size:12px;white-space:pre-wrap"></pre></details></div>
   </section>
 
-  <p class="fine">Veri: Yahoo Finance (ons, USD/TRY, dolar endeksi, ABD faizi, gümüş, VIX), Kapalıçarşı (truncgil), Google Haberler, Fed ve TCMB takvimleri. Veriler her ~20 dakikada bir sunucuda güncellenir. İstatistik aracıdır, yatırım tavsiyesi değildir.</p>
+  <p class="fine">Veri: Binance (ons, dolar; canlı), AKOD Antalya Kuyumcular Odası, Kapalıçarşı (truncgil), Altınkaynak, FRED, Google Haberler, Fed ve TCMB takvimleri. Tahminler ve kaynak fiyatları günde birkaç kez sunucuda güncellenir. İstatistik aracıdır, yatırım tavsiyesi değildir.</p>
 </main>
 
 <script>
@@ -221,7 +241,7 @@ const AY = ['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran','Temmuz','Ağustos
 const HZ = [['1', '24 saat'], ['5', '1 hafta'], ['21', '1 ay']];
 const askUrl = p => 'https://claude.ai/new?q=' + encodeURIComponent(p);
 const askLink = (p, label) => `<a class="ask" href="${askUrl(p)}" target="_blank" rel="noopener" data-p="${esc(p)}">${label}</a>`;
-let F = null, H = null, NEWS = null, CAL = null, LOG = [], RANGE = 90, LIVE = null, RATIO = 1;
+let F = null, H = null, NEWS = null, CAL = null, LOG = [], SRC = {}, RANGE = 90, LIVE = null, RATIO = 1;
 
 /* ---------- VERİ ---------- */
 // Veri önce sitenin kendi data/ klasöründen, olmazsa doğrudan GitHub'daki hafıza dalından (state) okunur
@@ -269,7 +289,7 @@ async function load(){
   const btn = $('refresh'); btn.innerHTML = '<span class="spin">↻</span>'; btn.disabled = true; $('status').innerHTML = '';
   try{
     [F, H] = await Promise.all([j('forecast.json'), j('history.json')]);
-    [NEWS, CAL, LOG] = await Promise.all([j('news.json').catch(() => ({})), j('calendar.json').catch(() => ({events: []})), j('log.json').catch(() => [])]);
+    [NEWS, CAL, LOG, SRC] = await Promise.all([j('news.json').catch(() => ({})), j('calendar.json').catch(() => ({events: []})), j('log.json').catch(() => []), j('sources.json').catch(() => ({}))]);
     F.rawPrice = F.price; RATIO = store.get('dukkan', null)?.ratio || 1; F.price = F.rawPrice * RATIO;
     LIVE = null; lastShown = null; renderAll(); onLive(); pollLive(true); connectWS();
   }catch(e){
@@ -282,7 +302,7 @@ async function load(){
 const prem = () => (1 + (F.premium || 0)) * RATIO;
 function renderHead(){
   const p = LIVE || F.price, n = H.dates.length, today = new Date().toISOString().slice(0, 10);
-  $('ptitle').textContent = RATIO !== 1 ? 'Gram altın · dükkan fiyatı' : F.premium != null ? 'Gram altın · Kapalıçarşı satış' : 'Gram altın (TL)';
+  $('ptitle').textContent = RATIO !== 1 ? 'Gram altın · dükkan fiyatı' : F.base === 'akod' ? 'Gram altın · Antalya' : F.premium != null ? 'Gram altın · Kapalıçarşı satış' : 'Gram altın (TL)';
   $('price').textContent = fmt(p, 2) + ' ₺';
   // Önceki kapanış: son satır bugünse bir önceki gün, değilse son satır
   const pi = H.dates[n - 1] >= today ? n - 2 : n - 1, prev = H.ons[pi] * H.kur[pi] / OZ * prem();
@@ -412,11 +432,23 @@ function renderNews(){
   const ago = t => { const m = (Date.now() - Date.parse(t)) / 6e4; return m < 60 ? Math.max(1, Math.round(m)) + ' dk önce' : m < 1440 ? Math.round(m / 60) + ' sa önce' : Math.round(m / 1440) + ' gün önce' };
   $('news').innerHTML = items.slice(0, 12).map(x => `<li><span class="dot ${x.s > 0.1 ? 'p' : x.s < -0.1 ? 'n' : ''}"></span><div><a href="${esc(x.link)}" target="_blank" rel="noopener">${esc(x.t)}</a><small>${esc(x.src)} · ${ago(x.time)}</small></div></li>`).join('') || '<li><span></span><div class="note">Haber alınamadı.</div></li>';
 }
-const KAP_AD = {gram: 'Gram altın', ceyrek: 'Çeyrek', yarim: 'Yarım', tam: 'Tam', cumhuriyet: 'Cumhuriyet', ata: 'Ata'};
-function renderKapali(){
-  const k = F.kapali?.fiyat || {};
-  $('kapali').tBodies[0].innerHTML = Object.keys(KAP_AD).filter(x => k[x]).map(x => `<tr><td>${KAP_AD[x]}</td><td>${fmt(k[x].al, 2)} ₺</td><td>${fmt(k[x].sat, 2)} ₺</td></tr>`).join('')
-    || `<tr><td colspan="3" style="white-space:normal">Kapalıçarşı verisi şu an alınamadı; fiyatlar ons × kur hesabıyla gösteriliyor.</td></tr>`;
+const SRC_KISA = {akod: 'AKOD Antalya', kapali: 'Kapalıçarşı', altinkaynak: 'Altınkaynak'};
+const PRODS = [['gram', 'Gram altın (24 ayar)'], ['b22', '22 ayar (gram)'], ['ceyrek', 'Çeyrek'], ['yarim', 'Yarım'], ['tam', 'Tam'], ['cumhuriyet', 'Cumhuriyet']];
+function renderSources(){
+  const st = SRC.stats || {};
+  const have = PRODS.filter(([p]) => st[p] && Object.keys(st[p].now || {}).length);
+  if (!have.length){ $('srcCards').innerHTML = '<div class="card"><p class="note" style="margin:0">Karşılaştırma verisi bir sonraki sunucu çalışmasında gelecek.</p></div>'; $('cheapSum').innerHTML = '<p class="note" style="margin:0">Veri bekleniyor.</p>'; return }
+  $('srcCards').innerHTML = have.map(([p, ad]) => {
+    const s = st[p], rows = Object.entries(s.now).sort((a, b) => a[1].sat - b[1].sat);
+    return `<div class="card"><h3>${ad}</h3>${rows.map(([src, v]) => { const x = (s.src || {})[src] || {};
+      const bits = [x.farkKC != null && src !== 'kapali' ? `Kapalıçarşı'ya göre ${pct(x.farkKC, 2)}` : '', x.makas != null ? `makas %${fmt(x.makas * 100, 1)}` : '', x.enUcuzOran != null && x.n >= 3 ? `en ucuz olma oranı %${Math.round(x.enUcuzOran * 100)}` : ''].filter(Boolean);
+      return `<div class="src"><span>${SRC_KISA[src] || src}${src === s.cheapest && rows.length > 1 ? '<span class="best">en ucuz</span>' : ''}</span><b>${fmt(v.sat, 0)} ₺</b>${v.al ? `<span class="prob">alış ${fmt(v.al, 0)} ₺${bits.length ? ' · ' + bits.join(' · ') : ''}</span>` : bits.length ? `<span class="prob">${bits.join(' · ')}</span>` : ''}</div>` }).join('')}</div>`;
+  }).join('');
+  $('cheapSum').innerHTML = have.map(([p, ad]) => { const s = st[p], c = s.now[s.cheapest], n = Object.keys(s.now).length;
+    const most = Math.max(...Object.values(s.now).map(v => v.sat)), save = most - c.sat;
+    return `<div class="src"><span>${ad}</span><b>${fmt(c.sat, 0)} ₺</b><span class="prob">${n > 1 ? `En ucuz: ${SRC_KISA[s.cheapest]}${save >= 1 ? ` · en pahalıya göre ${fmt(save, 0)} ₺ ucuz` : ''}` : `Tek kaynak: ${SRC_KISA[s.cheapest]}`}</span></div>` }).join('')
+    + `<div class="btns" style="margin-top:10px"><button type="button" id="goPrices">Tüm fiyatlar ve istatistik</button></div>`;
+  $('goPrices').onclick = () => $('tabs').querySelector('[data-t="fiyatlar"]').click();
 }
 function renderAskToday(){
   const fc = F.forecast, n = H.dates.length, b = Math.max(0, n - 22);
@@ -515,7 +547,28 @@ function renderMonths(){
 }
 
 /* ---------- KARNE ---------- */
+function renderReport(){
+  const R = F.report || {};
+  $('repSum').innerHTML = (R.ozet || ['Rapor bir sonraki sunucu çalışmasında oluşacak.']).map(x => `<p class="why" style="margin:6px 0">${esc(x)}</p>`).join('');
+  $('repTab').tBodies[0].innerHTML = HZ.map(([h, n]) => { const r = R[h] || {};
+    if (!r.n) return `<tr><td>${n}</td><td colspan="5" style="white-space:normal">Henüz sonuç yok</td></tr>`;
+    const tr = r.trend && r.trend[0] != null ? (r.trend[0] < r.trend[1] ? '<span class="up">iyileşiyor</span>' : '<span class="dn">kötüleşiyor</span>') : '—';
+    return `<tr><td>${n}</td><td>${r.n}</td><td>%${fmt(r.mae * 100, 2)}</td><td>${tr}</td><td>%${Math.round(r.yon * 100)}</td><td>%${Math.round(r.aralik * 100)}</td></tr>` }).join('');
+  const svg = $('repChart'), son = (R['1'] || {}).son || [];
+  const W = svg.clientWidth || 340, Ht = svg.clientHeight || 220;
+  if (!son.length){ svg.innerHTML = `<text x="${W / 2}" y="${Ht / 2}" text-anchor="middle" font-size="14" fill="currentColor" opacity=".6">İlk sonuçlar birkaç gün içinde burada görünecek</text>`; return }
+  const vals = son.flatMap(x => [x.lo, x.hi, x.act]), mx = Math.max(0.005, ...vals.map(Math.abs)) * 1.15;
+  const bw = (W - 40) / son.length, X = i => 36 + bw * (i + 0.5), Y = v => Ht / 2 - 18 - v / mx * (Ht / 2 - 30);
+  svg.innerHTML = `<line x1="36" x2="${W}" y1="${Y(0)}" y2="${Y(0)}" stroke="currentColor" opacity=".25"/>
+    <text x="30" y="${Y(mx * 0.8) + 4}" font-size="11" text-anchor="end" fill="currentColor" opacity=".6">+%${fmt(mx * 80, 1)}</text><text x="30" y="${Y(-mx * 0.8) + 4}" font-size="11" text-anchor="end" fill="currentColor" opacity=".6">−%${fmt(mx * 80, 1)}</text>
+    ${son.map((x, i) => `<rect x="${X(i) - bw * 0.3}" y="${Y(x.hi)}" width="${bw * 0.6}" height="${Math.max(1, Y(x.lo) - Y(x.hi))}" rx="3" fill="#c9a227" opacity=".35"/>
+      <line x1="${X(i) - bw * 0.3}" x2="${X(i) + bw * 0.3}" y1="${Y(x.med)}" y2="${Y(x.med)}" stroke="currentColor" stroke-width="2"/>
+      <circle cx="${X(i)}" cy="${Y(x.act)}" r="4.5" fill="${x.act >= x.lo && x.act <= x.hi ? 'var(--up)' : 'var(--dn)'}"/>`).join('')}
+    <text x="${X(0)}" y="${Ht - 4}" font-size="11" text-anchor="middle" fill="currentColor" opacity=".6">${dShort(son[0].d)}</text>
+    <text x="${X(son.length - 1)}" y="${Ht - 4}" font-size="11" text-anchor="middle" fill="currentColor" opacity=".6">${dShort(son[son.length - 1].d)}</text>`;
+}
 function renderKarne(){
+  renderReport();
   const naive = [];
   $('bt').tBodies[0].innerHTML = HZ.map(([h, name]) => {
     const rows = Object.entries(F.backtest[h] || {}).filter(([, b]) => b).sort((a, b) => a[1].loss - b[1].loss);
@@ -528,7 +581,7 @@ function renderKarne(){
   $('learn').innerHTML = `<p class="why" style="margin:0"><b>Haber etkisi.</b> ${nl.beta == null ? `Öğreniliyor: ${nl.n}/20 günlük haber kaydı var. O zamana kadar varsayılan küçük bir etki kullanılıyor.` : `${nl.n} günlük kayda göre olumlu haber günlerinin ertesinde ons ortalama ${pct(Math.exp(nl.beta) - 1, 2)} ${nl.beta >= 0 ? 'yükseliyor' : 'düşüyor'}; tahminler bu etkiyi kullanıyor.`}</p>
     <p class="why"><b>Karar günleri.</b> Geçmiş ${L.eventN} Fed kararına göre karar günlerinde ons oynaklığı normalin ${fmt(L.eventMult, 2)} katı. Tahmin süresine karar günü denk gelirse aralık buna göre genişletiliyor.</p>
     <p class="why"><b>Aralık ayarı.</b> ${HZ.map(([h, n]) => `${n} ×${fmt(F.forecast[h].scale, 2)}`).join(', ')}. 1'den büyükse model belirsizliği küçümsüyordu, aralık genişletildi.</p>
-    <p class="why"><b>Sapma düzeltmesi.</b> ${HZ.map(([h, n]) => { const b = L.bias[h]; return b.n >= 5 ? `${n}: ${b.n} tahminden ${pct(Math.exp(b.bias) - 1, 2)}` : `${n}: ${b.n}/5 tahmin` }).join(' · ')}</p>`;
+    <p class="why"><b>Sapma düzeltmesi.</b> ${HZ.map(([h, n]) => { const b = L.bias[h]; return b.n >= 3 ? `${n}: ${b.n} tahminden ${pct(Math.exp(b.bias) - 1, 2)}` : `${n}: ${b.n}/3 tahmin` }).join(' · ')}</p>`;
   const done = LOG.filter(x => x.act != null);
   const st = HZ.map(([h, n]) => { const d = done.filter(x => String(x.h) === h); if (!d.length) return `${n}: henüz sonuç yok`; const ok = d.filter(x => (x.act > 0) === (x.med > 0)).length, inr = d.filter(x => x.act >= x.lo && x.act <= x.hi).length; return `${n}: ${d.length} sonuç, yön %${Math.round(ok / d.length * 100)}, aralıkta %${Math.round(inr / d.length * 100)}` });
   $('logSum').innerHTML = `<p class="why" style="margin:0">${st.join('<br>')}</p>`;
@@ -537,10 +590,10 @@ function renderKarne(){
     return `<tr><td>${dShort(x.d)}</td><td>${name(x.h)}</td><td>${pct(x.med, 2)}</td>${x.act == null ? '<td>—</td><td>Bekliyor</td>' : `<td>${pct(x.act, 2)}</td><td class="${ok ? 'up' : 'dn'}">${ok ? 'Yön doğru' : 'Yön yanlış'}${inR ? ', aralıkta' : ''}</td>`}</tr>` }).join('');
 }
 function renderSys(){
-  $('sys').textContent = `Son sunucu çalışması: ${new Date(F.time).toLocaleString(TR)}. Fiyat geçmişi ${H.dates.length} işlem günü, haber hafızası ${Object.keys(NEWS.days || {}).length} gün, tahmin günlüğü ${LOG.length} kayıt. Kuyumcu farkı: ${F.premium == null ? 'bilinmiyor' : pct(F.premium, 2)}.`;
+  $('sys').textContent = `Son sunucu çalışması: ${new Date(F.time).toLocaleString(TR)}. Fiyat geçmişi ${H.dates.length} işlem günü, haber hafızası ${Object.keys(NEWS.days || {}).length} gün, tahmin günlüğü ${LOG.length} kayıt. Baz fiyat: ${esc(F.baseNote || 'Kapalıçarşı')}. Hesaplanan fiyata göre fark: ${F.premium == null ? 'bilinmiyor' : pct(F.premium, 2)}.`;
   $('logs').textContent = (F.logs || []).join('\n');
 }
-function renderAll(){ renderHead(); chartDraw(); renderForecasts(); renderEvents(); renderNews(); renderKapali(); renderAskToday(); renderPortfolio(); renderMonths(); renderKarne(); renderSys(); renderDukkan() }
+function renderAll(){ renderHead(); chartDraw(); renderForecasts(); renderEvents(); renderNews(); renderSources(); renderAskToday(); renderPortfolio(); renderMonths(); renderKarne(); renderSys(); renderDukkan() }
 
 /* ---------- DÜKKAN FİYATI ---------- */
 function renderDukkan(){
