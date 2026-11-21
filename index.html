@@ -40,6 +40,8 @@ header button{background:#1a1508;color:#f3e3a8;border:0}
 .big{font-size:clamp(40px,12vw,56px);font-weight:700;line-height:1.05;margin:10px 0 2px;white-space:nowrap}
 .sub{font-size:14px;display:flex;flex-wrap:wrap;gap:4px 16px}
 .chg{font-weight:600}
+.big{transition:color .8s}.big.fu{color:#0a5c3f;transition:none}.big.fd{color:#8f1d12;transition:none}
+.live{animation:pulse 2s ease-in-out infinite}@keyframes pulse{50%{opacity:.35}}
 .live{display:inline-block;width:8px;height:8px;border-radius:50%;background:#0b7a55;margin-right:6px;vertical-align:middle}
 .fig{position:relative;height:200px;margin:12px 0 4px}
 .fig svg,.fig .lwc{position:absolute;inset:0;width:100%;height:100%}
@@ -106,7 +108,7 @@ input[type=number],input[type=date],select{font:inherit;font-size:16px;min-heigh
 ol.steps{padding-left:20px;margin:8px 0}ol.steps li{margin:6px 0}
 code{background:var(--goldB);padding:1px 5px;border-radius:5px;font-size:14px;overflow-wrap:anywhere}
 .spin{animation:sp 1s linear infinite;display:inline-block}@keyframes sp{to{transform:rotate(360deg)}}
-@media(prefers-reduced-motion:reduce){.spin{animation:none}}
+@media(prefers-reduced-motion:reduce){.spin,.live{animation:none}.big{transition:none}}
 </style>
 </head>
 <body>
@@ -230,20 +232,38 @@ async function j(name){
   }
   throw new Error(name + ' bulunamadı');
 }
-async function liveTick(){
-  // Sunucu verisi arasında başlık fiyatını canlı tut (Binance, tarayıcıdan)
+/* ---------- CANLI FİYAT ----------
+   Binance canlı akışı (WebSocket): PAXG/USDT (1 ons altın) ve USDT/TRY her saniye.
+   Gram = ons × kur ÷ 31,1035 × Kapalıçarşı farkı × (varsa) dükkan farkı.
+   Akış kurulamazsa ya da sessiz kalırsa 15 saniyede bir normal istekle sorulur. */
+const LV = {ons: null, kur: null, t: 0}; let WS = null, wsTry = 0, lastShown = null, cardsAt = 0;
+function onLive(){
+  if (!F || !LV.ons || !LV.kur) return;
+  LIVE = LV.ons * LV.kur / OZ * prem();
+  renderHead();
+  if (lastShown != null && Math.abs(LIVE - lastShown) >= 0.005){ const el = $('price'); el.classList.remove('fu', 'fd'); void el.offsetWidth; el.classList.add(LIVE > lastShown ? 'fu' : 'fd'); setTimeout(() => el.classList.remove('fu', 'fd'), 400) }
+  lastShown = LIVE;
+  if (LW){ const n = H.dates.length, today = new Date().toISOString().slice(0, 10), wd = new Date().getDay() % 6 !== 0;
+    try{ LW.hist.update({time: wd && today > H.dates[n - 1] ? today : H.dates[n - 1], value: LIVE}) }catch(e){} }
+  if (Date.now() - cardsAt > 5000){ cardsAt = Date.now(); renderForecasts(); renderPortfolio() }
+}
+function connectWS(){
+  if (WS || !('WebSocket' in window)) return;
   try{
-    const g = async s => { for (const h of ['https://data-api.binance.vision', 'https://api.binance.com']){ try{ const r = await fetch(`${h}/api/v3/ticker/price?symbol=${s}`); if (r.ok) return +(await r.json()).price }catch(e){} } return null };
-    const [p, u] = await Promise.all([g('PAXGUSDT'), g('USDTTRY')]);
-    if (!p || !u || !F) return;
-    // PAXG/USDT, sunucunun ons/kur fiyatından biraz farklı olabilir: oransal değişimi uygula
-    const base = store.get('liveBase', null), now = p * u;
-    let ref = base && base.t === F.time ? base.v : null;
-    if (!ref){ ref = now; store.set('liveBase', {t: F.time, v: now}) }
-    LIVE = F.price * now / ref;
-    renderHead();
-    if (LW){ const n = H.dates.length; LW.hist.update({time: H.dates[n - 1], value: LIVE}) }
-  }catch(e){}
+    WS = new WebSocket('wss://data-stream.binance.vision/stream?streams=paxgusdt@miniTicker/usdttry@miniTicker');
+    WS.onopen = () => { wsTry = 0 };
+    WS.onmessage = e => { try{ const m = JSON.parse(e.data), d = m.data || m, c = +d.c; if (!(c > 0)) return;
+      if (d.s === 'PAXGUSDT') LV.ons = c; else if (d.s === 'USDTTRY') LV.kur = c; LV.t = Date.now(); onLive() }catch(err){} };
+    WS.onclose = () => { WS = null; if (!document.hidden) setTimeout(connectWS, Math.min(30000, 2000 * 2 ** wsTry++)) };
+    WS.onerror = () => { try{ WS.close() }catch(err){} };
+  }catch(e){ WS = null }
+}
+async function pollLive(force){
+  if (!force && WS && WS.readyState === 1 && Date.now() - LV.t < 20000) return;
+  const g = async s => { for (const h of ['https://data-api.binance.vision', 'https://api.binance.com']){ try{ const r = await fetch(`${h}/api/v3/ticker/price?symbol=${s}`, {cache: 'no-store'}); if (r.ok) return +(await r.json()).price }catch(e){} } return null };
+  const [p, u] = await Promise.all([g('PAXGUSDT'), g('USDTTRY')]);
+  if (p) LV.ons = p; if (u) LV.kur = u;
+  if (p && u){ LV.t = Date.now(); onLive() }
 }
 async function load(){
   const btn = $('refresh'); btn.innerHTML = '<span class="spin">↻</span>'; btn.disabled = true; $('status').innerHTML = '';
@@ -251,7 +271,7 @@ async function load(){
     [F, H] = await Promise.all([j('forecast.json'), j('history.json')]);
     [NEWS, CAL, LOG] = await Promise.all([j('news.json').catch(() => ({})), j('calendar.json').catch(() => ({events: []})), j('log.json').catch(() => [])]);
     F.rawPrice = F.price; RATIO = store.get('dukkan', null)?.ratio || 1; F.price = F.rawPrice * RATIO;
-    LIVE = null; renderAll(); liveTick();
+    LIVE = null; lastShown = null; renderAll(); onLive(); pollLive(true); connectWS();
   }catch(e){
     $('status').innerHTML = `<div class="card err" style="margin-top:16px"><b>Veri henüz hazır değil.</b> Sunucu ilk kez çalışıyorsa birkaç dakika sonra tekrar dene. Uygulamayı <code>redematin0.github.io/altin-tahmin</code> adresinden açtığından emin ol.<small style="display:block;margin-top:6px">${esc(e.message)}</small></div>`;
     $('chg24').textContent = 'Veri yok';
@@ -261,14 +281,23 @@ async function load(){
 /* ---------- BAŞLIK + GRAFİK ---------- */
 const prem = () => (1 + (F.premium || 0)) * RATIO;
 function renderHead(){
-  const p = LIVE || F.price;
+  const p = LIVE || F.price, n = H.dates.length, today = new Date().toISOString().slice(0, 10);
   $('ptitle').textContent = RATIO !== 1 ? 'Gram altın · dükkan fiyatı' : F.premium != null ? 'Gram altın · Kapalıçarşı satış' : 'Gram altın (TL)';
   $('price').textContent = fmt(p, 2) + ' ₺';
-  $('chg24').innerHTML = (LIVE ? '<span class="live" title="canlı"></span>' : '') + 'Dünden beri ' + pct(F.chg1d * 1 + (LIVE ? LIVE / F.price - 1 : 0), 2);
-  $('ons').textContent = 'Ons ' + fmt(F.ons, 0) + ' $';
-  $('kur').textContent = 'Dolar ' + fmt(F.kur, 2) + ' ₺';
-  const age = Math.round((Date.now() - Date.parse(F.time)) / 6e4);
-  $('stamp').textContent = `Sunucu güncellemesi: ${age < 60 ? age + ' dk' : Math.round(age / 60) + ' sa'} önce` + (LIVE ? ' · fiyat canlı' : '');
+  // Önceki kapanış: son satır bugünse bir önceki gün, değilse son satır
+  const pi = H.dates[n - 1] >= today ? n - 2 : n - 1, prev = H.ons[pi] * H.kur[pi] / OZ * prem();
+  const pd = new Date(H.dates[pi] + 'T12:00:00'), yest = new Date(Date.now() - 864e5).toISOString().slice(0, 10);
+  const lbl = H.dates[pi] === yest ? 'Dünden beri' : pd.toLocaleDateString(TR, {weekday: 'long'}) + ' kapanışından beri';
+  $('chg24').innerHTML = (LIVE ? '<span class="live" title="canlı"></span>' : '') + lbl + ' ' + pct(p / prev - 1, 2);
+  $('ons').textContent = 'Ons ' + fmt(LV.ons || F.ons, 0) + ' $';
+  $('kur').textContent = 'Dolar ' + fmt(LV.kur || F.kur, 2) + ' ₺';
+  renderStamp();
+}
+function renderStamp(){
+  if (!F) return;
+  const sec = LV.t ? Math.round((Date.now() - LV.t) / 1000) : null, age = Math.round((Date.now() - Date.parse(F.time)) / 6e4);
+  const wk = new Date().getDay() % 6 === 0 ? ' · hafta sonu piyasa kapalı, fiyat az oynar' : '';
+  $('stamp').textContent = (sec != null && sec < 120 ? `Canlı · ${sec < 3 ? 'şimdi' : sec + ' sn önce'}` : 'Fiyat canlı alınamadı, sunucu verisi gösteriliyor') + ` · tahminler ${age < 60 ? age + ' dk' : Math.round(age / 60) + ' sa'} önce` + wk;
 }
 function drawChart(){
   const s = $('chart'); if (!H || !F) return;
@@ -355,7 +384,7 @@ async function chartDraw(){
 
 /* ---------- BUGÜN ---------- */
 function renderForecasts(){
-  const p = F.price;
+  const p = LIVE || F.price;
   $('fc').innerHTML = HZ.map(([h, name]) => {
     const f = F.forecast[h];
     const span = Math.max(Math.abs(f.lo), Math.abs(f.hi)) * 1.15 || 0.01, pos = v => ((v + span) / (2 * span) * 100).toFixed(1);
@@ -540,7 +569,9 @@ document.addEventListener('click', e => { const a = e.target.closest('a.ask'); i
 try{ const t = sessionStorage.getItem('alt_tab'); if (t) $('tabs').querySelector(`[data-t="${t}"]`)?.click() }catch(e){}
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
 load();
-setInterval(() => { if (!document.hidden) liveTick() }, 60 * 1000);
+setInterval(() => { if (!document.hidden) pollLive() }, 15 * 1000);
+setInterval(() => { if (!document.hidden) renderStamp() }, 1000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden && F){ connectWS(); pollLive(true) } });
 setInterval(() => { if (!document.hidden) load() }, 10 * 60 * 1000);
 }
 </script>
