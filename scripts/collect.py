@@ -280,11 +280,11 @@ def fetch_altinkaynak():
             k = 'ceyrek'
         elif 'yarim' in a and 'eski' not in a:
             k = 'yarim'
-        elif a.startswith('tam') and 'eski' not in a:
+        elif (a.startswith('tam') or a == 'teklik') and 'eski' not in a:
             k = 'tam'
         elif 'cumhuriyet' in a or a in ('ata', 'ataaltin', 'ataliras'):
             k = 'cumhuriyet'
-        elif '22' in a and ('ayar' in a or 'bilezik' in a):
+        elif '22' in a and 'bilezik' in a:  # "22 Ayar Hurda" bozdurma fiyatıdır, karıştırılmaz
             k = 'b22'
         if k and k not in out:
             try:
