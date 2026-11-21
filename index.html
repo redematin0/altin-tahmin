@@ -39,6 +39,10 @@ button:disabled{opacity:.6}
 header button{background:#1a1508;color:#f3e3a8;border:0}
 .big{font-size:clamp(40px,12vw,56px);font-weight:700;line-height:1.05;margin:10px 0 2px;white-space:nowrap}
 .sub{font-size:14px;display:flex;flex-wrap:wrap;gap:4px 16px}
+.as{display:flex;flex-wrap:wrap;gap:2px 18px;font-size:15px;margin:4px 0 6px}.as b{font-weight:700;white-space:nowrap}.as .m{color:#1a1508aa;font-size:13px;align-self:center}
+.h2row{display:flex;justify-content:space-between;align-items:center;gap:10px;margin:24px 0 4px}.h2row h2{margin:0}
+.h2row button{min-height:40px;font-size:14px;padding:0 12px;white-space:nowrap}
+.pt td,.pt th{padding:7px 4px}.pt td b{font-weight:600}
 .chg{font-weight:600}
 .big{transition:color .8s}.big.fu{color:#0a5c3f;transition:none}.big.fd{color:#8f1d12;transition:none}
 .live{animation:pulse 2s ease-in-out infinite}@keyframes pulse{50%{opacity:.35}}
@@ -118,6 +122,7 @@ code{background:var(--goldB);padding:1px 5px;border-radius:5px;font-size:14px;ov
 <header><div class="wrap">
   <div class="top"><h1 id="ptitle">Gram altın (TL)</h1><button id="refresh" type="button">Yenile</button></div>
   <div class="big" id="price">—</div>
+  <div class="as" id="alsat"></div>
   <div class="sub"><span class="chg" id="chg24">Yükleniyor…</span><span id="ons"></span><span id="kur"></span></div>
   <div class="hover" id="hover">Grafiğe dokun: o günün fiyatını gör</div>
   <div class="fig" id="fig"><svg id="chart" role="img" aria-label="Gram altın fiyat grafiği ve önümüzdeki ay için tahmin aralığı"></svg><div id="lwc" class="lwc" hidden></div></div>
@@ -130,8 +135,12 @@ code{background:var(--goldB);padding:1px 5px;border-radius:5px;font-size:14px;ov
   <div id="status"></div>
 
   <section id="bugun">
-    <h2>Tahminler</h2>
-    <p class="note">Çubuk %80 olasılıkla beklenen aralık, siyah çizgi en olası sonuç. Her süre için geçmişte en iyi tutan yöntem otomatik seçilir. Önemli bir karar günü varsa aralık kendiliğinden genişler.</p>
+    <h2>Alış / satış</h2>
+    <p class="note" id="ptNote">Alış: kuyumcunun senden alacağı (bozdurma) fiyat. Satış: kuyumcudan alırken ödeyeceğin fiyat. Canlı kurla güncellenir.</p>
+    <div class="card scroll"><table class="pt" id="ptab"><thead><tr><th>Ürün</th><th>Alış</th><th>Satış</th><th>Makas</th></tr></thead><tbody></tbody></table></div>
+    <div class="h2row"><h2>Tahminler</h2><button type="button" id="fcRefresh">↻ Tahminleri yenile</button></div>
+    <p class="prob" id="runMsg" role="status" style="margin:0 0 6px"></p>
+    <p class="note">Çubuk %80 olasılıkla beklenen aralık, siyah çizgi en olası sonuç. Her süre için geçmişte en iyi tutan yöntem otomatik seçilir. Önemli bir karar günü varsa aralık kendiliğinden genişler. Sunucu tahminleri her ~20 dakikada kendiliğinden yeniler; düğmeyle istediğin an hesaplatabilirsin.</p>
     <div class="cards" id="fc"></div>
     <div id="askToday" style="margin-top:12px"></div>
     <h2>Yaklaşan önemli günler</h2>
@@ -209,6 +218,19 @@ code{background:var(--goldB);padding:1px 5px;border-radius:5px;font-size:14px;ov
       <div class="btns" style="margin-top:12px"><button type="submit">Kaydet</button><button type="button" id="dkReset">Kapalıçarşı'ya dön</button></div>
       <p class="note" id="dkInfo" style="margin:10px 0 0"></p>
     </form>
+    <h2>Tahminleri anında yenileme</h2>
+    <form class="card" id="ghForm">
+      <p class="why" style="margin:0">Tahminler sunucuda (GitHub) her ~20 dakikada bir hesaplanır. <b>Tahminleri yenile</b> düğmesiyle istediğin an hesaplatmak için bu telefona bir kez GitHub anahtarı gir. <b>Yalnızca site sahibi için.</b> Anahtar sadece bu telefonda saklanır; kimseyle paylaşma.</p>
+      <ol class="steps">
+        <li><code>github.com/settings/personal-access-tokens/new</code> adresini aç (fine-grained token).</li>
+        <li><b>Repository access</b>: <i>Only select repositories</i> → <code>altin-tahmin</code>.</li>
+        <li><b>Permissions → Repository permissions → Actions</b>: <i>Read and write</i>. Başka izin verme.</li>
+        <li>Süre seç, <b>Generate token</b>'a bas; <code>github_pat_</code> ile başlayan anahtarı aşağı yapıştır.</li>
+      </ol>
+      <div class="form"><label class="f">GitHub anahtarı<input id="ghTok" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" style="font:inherit;font-size:16px;min-height:44px;width:100%;padding:0 10px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--ink)"></label></div>
+      <div class="btns" style="margin-top:12px"><button type="submit">Kaydet ve dene</button><button type="button" id="ghDel">Anahtarı sil</button></div>
+      <p class="note" id="ghInfo" style="margin:10px 0 0"></p>
+    </form>
     <h2>Telegram bildirimleri</h2>
     <details class="card"><summary style="min-height:44px;display:flex;align-items:center;font-weight:600">Yalnızca site sahibi için (kurulum adımları)</summary>
       <p class="why" style="margin:0">Her sabah özet, %2'yi aşan hareketlerde uyarı ve kendi fiyat alarmların için:</p>
@@ -265,7 +287,7 @@ function onLive(){
   lastShown = LIVE;
   if (LW){ const n = H.dates.length, today = new Date().toISOString().slice(0, 10), wd = new Date().getDay() % 6 !== 0;
     try{ LW.hist.update({time: wd && today > H.dates[n - 1] ? today : H.dates[n - 1], value: LIVE}) }catch(e){} }
-  if (Date.now() - cardsAt > 5000){ cardsAt = Date.now(); renderForecasts(); renderPortfolio() }
+  if (Date.now() - cardsAt > 5000){ cardsAt = Date.now(); renderForecasts(); renderPrices(); renderPortfolio() }
 }
 function connectWS(){
   if (WS || !('WebSocket' in window)) return;
@@ -304,6 +326,8 @@ function renderHead(){
   const p = LIVE || F.price, n = H.dates.length, today = new Date().toISOString().slice(0, 10);
   $('ptitle').textContent = RATIO !== 1 ? 'Gram altın · dükkan fiyatı' : F.base === 'akod' ? 'Gram altın · Antalya' : F.premium != null ? 'Gram altın · Kapalıçarşı satış' : 'Gram altın (TL)';
   $('price').textContent = fmt(p, 2) + ' ₺';
+  const g = (F.kapali?.fiyat || {}).gram, r = g && g.al > 0 && g.sat > 0 ? g.al / g.sat : 0;
+  $('alsat').innerHTML = r > 0.9 && r <= 1 ? `<span>Alış <b>${fmt(p * r, 2)} ₺</b></span><span>Satış <b>${fmt(p, 2)} ₺</b></span><span class="m">makas %${fmt((1 - r) * 100, 2)}</span>` : '';
   // Önceki kapanış: son satır bugünse bir önceki gün, değilse son satır
   const pi = H.dates[n - 1] >= today ? n - 2 : n - 1, prev = H.ons[pi] * H.kur[pi] / OZ * prem();
   const pd = new Date(H.dates[pi] + 'T12:00:00'), yest = new Date(Date.now() - 864e5).toISOString().slice(0, 10);
@@ -418,6 +442,80 @@ function renderForecasts(){
     </div>`;
   }).join('');
 }
+/* Alış/satış tablosu: Kapalıçarşı alış-satışı, başlıktaki fiyatla aynı şekilde canlı kura ve (varsa) Antalya / dükkan farkına göre ölçeklenir */
+const PT = [['gram', 'Gram (24 ayar)'], ['b22', '22 ayar bilezik (gr)'], ['ceyrek', 'Çeyrek'], ['yarim', 'Yarım'], ['tam', 'Tam'], ['cumhuriyet', 'Cumhuriyet'], ['ata', 'Ata']];
+function renderPrices(){
+  const k = F.kapali?.fiyat || {}, live = (LIVE || F.price) / F.price;
+  const a = F.base === 'akod' && F.antalyaRatio ? F.antalyaRatio : 1, f = live * a * RATIO;
+  const rows = PT.filter(([p]) => k[p] && k[p].sat > 0).map(([p, ad]) => { const v = k[p];
+    return `<tr><td>${ad}</td><td><b>${v.al > 0 ? fmt(v.al * f, 0) + ' ₺' : '—'}</b></td><td><b>${fmt(v.sat * f, 0)} ₺</b></td><td>${v.al > 0 ? '%' + fmt((1 - v.al / v.sat) * 100, 1) : '—'}</td></tr>` });
+  $('ptab').tBodies[0].innerHTML = rows.join('') || '<tr><td colspan="4" style="white-space:normal">Alış/satış verisi bir sonraki sunucu çalışmasında gelecek.</td></tr>';
+  $('ptNote').textContent = `Alış: kuyumcunun senden alacağı (bozdurma) fiyat. Satış: kuyumcudan alırken ödeyeceğin fiyat. ${RATIO !== 1 ? 'Dükkan fiyatına göre ayarlı.' : a !== 1 ? 'Kapalıçarşı fiyatları Antalya (AKOD) farkıyla ayarlı; AKOD alış yayınlamadığı için makas Kapalıçarşı\'dan.' : 'Kapalıçarşı fiyatları.'} Canlı kurla güncellenir.`;
+}
+
+/* ---------- TAHMİNLERİ ANINDA YENİLE ----------
+   GitHub Actions'taki sunucu iş akışını (altin.yml) elle başlatır, bitmesini bekler, sonra yeni veriyi yükler.
+   Anahtar yalnızca bu cihazın tarayıcısında (localStorage) durur. */
+const GH = 'https://api.github.com/repos/redematin0/altin-tahmin', WF = 'altin.yml';
+const ghTok = () => store.get('ghtok', '');
+async function gh(path, opt = {}){
+  const r = await fetch(GH + path, {...opt, cache: 'no-store', headers: {Accept: 'application/vnd.github+json', Authorization: 'Bearer ' + ghTok(), ...(opt.body ? {'Content-Type': 'application/json'} : {})}});
+  if (!r.ok){ const e = new Error('GitHub ' + r.status); e.status = r.status; throw e }
+  return r.status === 204 ? null : r.json();
+}
+const ghErr = e => e.status === 401 ? 'GitHub anahtarı geçersiz ya da süresi dolmuş. Ayarlar\'dan yenisini gir.' : e.status === 403 || e.status === 404 ? 'Anahtarın bu depoda Actions yazma izni yok (Actions: Read and write olmalı).' : 'GitHub\'a ulaşılamadı (' + esc(e.message) + ').';
+const mmss = s => Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+let RUN = store.get('run', null), runTimer = null;
+function runUI(msg, kind){
+  const b = $('fcRefresh'); b.disabled = !!RUN; b.innerHTML = RUN ? '<span class="spin">↻</span> Hesaplanıyor' : '↻ Tahminleri yenile';
+  $('runMsg').innerHTML = msg ? `<span class="${kind === 'err' ? 'dn' : kind === 'ok' ? 'up' : ''}">${msg}</span>` : '';
+}
+async function refreshForecasts(){
+  if (RUN) return;
+  if (!ghTok()){ $('tabs').querySelector('[data-t="ayar"]').click(); $('ghForm').scrollIntoView({behavior: 'smooth'}); $('ghInfo').textContent = 'Önce GitHub anahtarını gir; sonra Bugün sekmesindeki düğmeyle tahminleri istediğin an yenileyebilirsin.'; return }
+  RUN = {t: Date.now(), before: F?.time}; store.set('run', RUN); runUI('Sunucuya istek gönderiliyor…');
+  try{ await gh(`/actions/workflows/${WF}/dispatches`, {method: 'POST', body: JSON.stringify({ref: 'main'})}) }
+  catch(e){ RUN = null; store.set('run', null); runUI(ghErr(e), 'err'); return }
+  pollRun();
+}
+async function pollRun(){
+  clearTimeout(runTimer);
+  if (!RUN) return;
+  const el = Math.round((Date.now() - RUN.t) / 1000);
+  if (el > 20 * 60){ RUN = null; store.set('run', null); runUI('Çalışma 20 dakikada bitmedi; GitHub\'da Actions sekmesine bak.', 'err'); return }
+  try{
+    if (!RUN.id){
+      const d = await gh(`/actions/workflows/${WF}/runs?event=workflow_dispatch&per_page=5`);
+      const r = (d.workflow_runs || []).find(x => Date.parse(x.created_at) >= RUN.t - 60000);
+      if (r){ RUN.id = r.id; store.set('run', RUN) }
+    }
+    if (RUN.id){
+      const r = await gh(`/actions/runs/${RUN.id}`);
+      if (r.status === 'completed'){
+        const ok = r.conclusion === 'success', before = RUN.before; RUN = null; store.set('run', null);
+        if (!ok){ runUI(`Sunucu çalışması başarısız oldu (${esc(r.conclusion)}). Eski tahminler gösteriliyor.`, 'err'); return }
+        runUI('Yeni veri yükleniyor…'); await load();
+        runUI(F && F.time !== before ? `Tahminler yeniden hesaplandı · ${new Date(F.time).toLocaleTimeString(TR, {hour: '2-digit', minute: '2-digit'})}` : 'Sunucu çalıştı ama yeni veri siteye henüz yansımadı; bir dakika sonra Yenile\'ye bas.', F && F.time !== before ? 'ok' : '');
+        return;
+      }
+      runUI((r.status === 'in_progress' ? 'Tahminler hesaplanıyor' : 'Sırada bekliyor (önceki çalışma bitince başlar)') + ` · ${mmss(el)} · genelde 2–4 dk sürer`);
+    } else runUI(`Sunucu başlatılıyor · ${mmss(el)}`);
+  }catch(e){ if (e.status === 401){ RUN = null; store.set('run', null); runUI(ghErr(e), 'err'); return } runUI(`Durum alınamadı, tekrar denenecek · ${mmss(el)}`) }
+  runTimer = setTimeout(pollRun, 8000);
+}
+$('fcRefresh').addEventListener('click', refreshForecasts);
+$('ghForm').addEventListener('submit', async e => {
+  e.preventDefault(); const t = $('ghTok').value.trim(); if (!t && !ghTok()) return;
+  if (t) store.set('ghtok', t);
+  $('ghTok').value = ''; $('ghInfo').textContent = 'Deneniyor…';
+  try{ await gh(`/actions/workflows/${WF}`); $('ghInfo').innerHTML = '<span class="up">Anahtar çalışıyor.</span> Bugün sekmesindeki <b>Tahminleri yenile</b> düğmesini kullanabilirsin.' }
+  catch(err){ $('ghInfo').innerHTML = `<span class="dn">${ghErr(err)}</span>` }
+});
+$('ghDel').addEventListener('click', () => { try{ localStorage.removeItem('alt_ghtok') }catch(e){} $('ghInfo').textContent = 'Anahtar bu telefondan silindi.' });
+$('ghInfo').textContent = ghTok() ? 'Bu telefonda kayıtlı bir anahtar var.' : 'Kayıtlı anahtar yok.';
+if (RUN && Date.now() - RUN.t < 20 * 60 * 1000) pollRun(); else { RUN = null; store.set('run', null) }
+runUI($('runMsg').textContent);
+
 function renderEvents(){
   const today = new Date().toISOString().slice(0, 10);
   const ev = (CAL.events || []).filter(e => e.date >= today).slice(0, 8);
@@ -593,7 +691,7 @@ function renderSys(){
   $('sys').textContent = `Son sunucu çalışması: ${new Date(F.time).toLocaleString(TR)}. Fiyat geçmişi ${H.dates.length} işlem günü, haber hafızası ${Object.keys(NEWS.days || {}).length} gün, tahmin günlüğü ${LOG.length} kayıt. Baz fiyat: ${esc(F.baseNote || 'Kapalıçarşı')}. Hesaplanan fiyata göre fark: ${F.premium == null ? 'bilinmiyor' : pct(F.premium, 2)}.`;
   $('logs').textContent = (F.logs || []).join('\n');
 }
-function renderAll(){ renderHead(); chartDraw(); renderForecasts(); renderEvents(); renderNews(); renderSources(); renderAskToday(); renderPortfolio(); renderMonths(); renderKarne(); renderSys(); renderDukkan() }
+function renderAll(){ renderHead(); chartDraw(); renderPrices(); renderForecasts(); renderEvents(); renderNews(); renderSources(); renderAskToday(); renderPortfolio(); renderMonths(); renderKarne(); renderSys(); renderDukkan() }
 
 /* ---------- DÜKKAN FİYATI ---------- */
 function renderDukkan(){
