@@ -52,6 +52,10 @@ jobs:
           SITE_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
         run: python scripts/collect.py
 
+      - name: Fiyat kaynağı keşfi
+        continue-on-error: true
+        run: python scripts/discover.py | head -c 20000
+
       - name: Grafik kütüphanesi (bir kez indirilir, hafızada saklanır)
         run: |
           [ -s data/lightweight-charts.js ] || curl -fsSL --retry 3 -o data/lightweight-charts.js https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js || echo "indirilemedi"
