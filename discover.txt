@@ -1,0 +1,297 @@
+
+===== https://akod.org.tr/ -> 200 10903 bayt text/html; charset=UTF-8
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <title>AKOD – Antalya Kuyumcular Esnaf ve Sanatkarlar Odası</title>
+  <meta name="description" content="Antalya Kuyumcular Esnaf ve Sanatkarlar Odası resmi web sitesi. Güncel altın fiyatları, haberler ve duyurular.">
+  <meta name="keywords" content="Antalya Kuyumcular Odası, AKOD, kuyumcu, altın fiyatları, Antalya">
+  <link rel="icon" type="image/png" href="/uploads/logo.png">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div class="page-wrapper">
+    <!-- Navbar -->
+    <nav class="navbar" id="navbar">
+      <div class="navbar-inner">
+        <a href="/" class="navbar-brand" data-link>
+          <img src="/uploads/logo.png" alt="AKOD Logo" class="navbar-logo" id="nav-logo">
+          <div class="navbar-title">
+            ANTALYA KUYUMCULAR ESNAF VE SANATKARLAR ODASI
+          </div>
+        </a>
+
+        <ul class="navbar-menu" id="nav-menu">
+          <li><a href="/" data-link class="active">Ana Sayfa</a></li>
+          <li class="nav-dropdown">
+            <a href="javascript:void(0)">Kurumsal</a>
+            <ul class="nav-dropdown-menu">
+              <li><a href="/kurumsal/hakkimizda" data-link>Hakkımızda</a></li>
+              <li><a href="/kurumsal/vizyonumuz" data-link>Vizyonumuz</a></li>
+              <li><a href="/kurumsal/misyonumuz" data-link>Misyonumuz</a></li>
+              <li><a href="/kurumsal/yonetim-kurulu" data-link>Yönetim Kurulu</a></li>
+              <li><a href="/kurumsal/ustalik-belgesi-nasil-alinir" data-link>Ustalık Belgesi</a></li>
+              <li><a href="/kurumsal/oda-kayit-icin-gerekli-belgeler" data-link>Oda Kayıt</a></li>
+            </ul>
+          </li>
+          <li><a href="/haberler" data-link>Haberler</a></li>
+          <li><a href="/duyurular" data-link>Duyurular</a></li>
+          <li><a href="/iletisim" data-link>İletişim</a></li>
+        </ul>
+
+        <button class="menu-toggle" id="menu-toggle" aria-label="Menü">
+          <span class="hamburger-icon">
+            <span></span>
+            <span></span>
+            <span></span>
+          </span>
+        </button>
+      </div>
+    </nav>
+
+    <!-- Price Ticker -->
+    <div class="price-ticker" id="price-ticker">
+      <div class="price-ticker-wrapper">
+        <div class="price-ticker-left">
+          <div class="price-ticker-inner" id="price-ticker-inner">
+            <div class="price-ticker-prices" id="price-items">
+              <!-- Populated by JS -->
+            </div>
+          </div>
+          <div class="price-ticker-disclaimer" id="price-disclaimer">
+            <!-- Desktop: inline disclaimer text -->
+            <div class="disclaimer-inline">
+              <strong>Aidat</strong>
+              <div class="price-ticker-disclaimer-title">ESNAFIMIZIN DİKKATİNE!</div>
+              <p>5362 SAYILI ESNAF VE SANATKARLAR MESLEK KURULUŞLARI KANUNUNUN 61. MADDESİNİN SON BENDİNE GÖRE;</p>
+              <p><strong>''Yıllık aidatlarını ödemeyen üyelere, ödeme yapılıncaya kadar odaca yapılacak hizmetler ile düzenlenecek ve onanacak belgeler verilmez''</strong> hükmü yer almaktadır. Esnaflarımızın Odamızdan Faaliyet belgelerini almadan önce aidatlarını ödemeleri önemle rica olunur.</p>
+            </div>
+            <!-- Mobile: CTA button opening modal -->
+            <button class="disclaimer-cta" id="disclaimer-toggle" onclick="openDisclaimerModal()" aria-haspopup="dialog">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              <span>Aidat Bildirimi</span>
+            </button>
+          </div>
+        </div>
+        <
+
+===== https://akod.org.tr/compat.js -> 200 17023 bayt application/javascript; charset=UTF-8
+// Minimal compatibility shims for older WebView engines (Android TV boxes etc.).
+// Keeps existing app logic intact, only fills in missing APIs.
+
+// -- Promise polyfill (very small subset, enough for this app) ---------
+(function () {
+  if (typeof window === 'undefined') return;
+  if (typeof 
+
+===== https://akod.org.tr/main.js -> 200 37056 bayt application/javascript; charset=UTF-8
+/* ─────────────────────────────────────────────
+   AKOD – Client-side SPA Router & Renderer
+   ES5-compatible for older Android TV WebViews
+   ───────────────────────────────────────────── */
+
+var $main = document.getElementById('main-content');
+var siteSettings = {};
+
+/* ── Helpers ───────
+
+##### AKOD aday adresler:
+https://akod.org.tr/api
+https://akod.org.tr/kurumsal/
+https://akod.org.tr/kurumsal/hakkimizda
+https://akod.org.tr/prices
+
+===== https://akod.org.tr/api -> 200 10903 bayt text/html; charset=UTF-8
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <title>AKOD – Antalya Kuyumcular Esnaf ve Sanatkarlar Odası</title>
+  <meta name="description" content="Antalya Kuyumcular Esnaf ve Sanatkarlar Odası resmi web sitesi. Güncel altın fiyatları, haberler ve duyurular.">
+  <meta name="keywords" content="Antalya Kuyumcular Odası, AKOD, kuyumcu, altın fiyatları, Antalya">
+  <link rel="icon" type="image/png" href="/uploads/logo.png">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div class="page-wrapper">
+    <!-- Navbar -->
+    <nav class="navbar" id="navbar">
+      <div class="navbar-inner">
+        <a href="/" class="navbar-brand" data-link>
+          <img src="/uploads/logo.png" alt="AKOD Logo" class="navbar-logo" id="nav-logo">
+          <div class="navbar-title">
+            ANTALYA KUYUMCULAR ESNAF VE SANATKARLAR ODASI
+          </div>
+        </a>
+
+        <ul class="navbar-menu" id="nav-menu">
+          <li><a href="/" data-link class="active">Ana Sayfa</a></li
+
+===== https://akod.org.tr/kurumsal/ -> 200 10903 bayt text/html; charset=UTF-8
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <title>AKOD – Antalya Kuyumcular Esnaf ve Sanatkarlar Odası</title>
+  <meta name="description" content="Antalya Kuyumcular Esnaf ve Sanatkarlar Odası resmi web sitesi. Güncel altın fiyatları, haberler ve duyurular.">
+  <meta name="keywords" content="Antalya Kuyumcular Odası, AKOD, kuyumcu, altın fiyatları, Antalya">
+  <link rel="icon" type="image/png" href="/uploads/logo.png">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div class="page-wrapper">
+    <!-- Navbar -->
+    <nav class="navbar" id="navbar">
+      <div class="navbar-inner">
+        <a href="/" class="navbar-brand" data-link>
+          <img src="/uploads/logo.png" alt="AKOD Logo" class="navbar-logo" id="nav-logo">
+          <div class="navbar-title">
+            ANTALYA KUYUMCULAR ESNAF VE SANATKARLAR ODASI
+          </div>
+        </a>
+
+        <ul class="navbar-menu" id="nav-menu">
+          <li><a href="/" data-link class="active">Ana Sayfa</a></li
+
+===== https://akod.org.tr/kurumsal/hakkimizda -> 200 10903 bayt text/html; charset=UTF-8
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <title>AKOD – Antalya Kuyumcular Esnaf ve Sanatkarlar Odası</title>
+  <meta name="description" content="Antalya Kuyumcular Esnaf ve Sanatkarlar Odası resmi web sitesi. Güncel altın fiyatları, haberler ve duyurular.">
+  <meta name="keywords" content="Antalya Kuyumcular Odası, AKOD, kuyumcu, altın fiyatları, Antalya">
+  <link rel="icon" type="image/png" href="/uploads/logo.png">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div class="page-wrapper">
+    <!-- Navbar -->
+    <nav class="navbar" id="navbar">
+      <div class="navbar-inner">
+        <a href="/" class="navbar-brand" data-link>
+          <img src="/uploads/logo.png" alt="AKOD Logo" class="navbar-logo" id="nav-logo">
+          <div class="navbar-title">
+            ANTALYA KUYUMCULAR ESNAF VE SANATKARLAR ODASI
+          </div>
+        </a>
+
+        <ul class="navbar-menu" id="nav-menu">
+          <li><a href="/" data-link class="active">Ana Sayfa</a></li
+
+===== https://akod.org.tr/prices -> 200 10903 bayt text/html; charset=UTF-8
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <title>AKOD – Antalya Kuyumcular Esnaf ve Sanatkarlar Odası</title>
+  <meta name="description" content="Antalya Kuyumcular Esnaf ve Sanatkarlar Odası resmi web sitesi. Güncel altın fiyatları, haberler ve duyurular.">
+  <meta name="keywords" content="Antalya Kuyumcular Odası, AKOD, kuyumcu, altın fiyatları, Antalya">
+  <link rel="icon" type="image/png" href="/uploads/logo.png">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div class="page-wrapper">
+    <!-- Navbar -->
+    <nav class="navbar" id="navbar">
+      <div class="navbar-inner">
+        <a href="/" class="navbar-brand" data-link>
+          <img src="/uploads/logo.png" alt="AKOD Logo" class="navbar-logo" id="nav-logo">
+          <div class="navbar-title">
+            ANTALYA KUYUMCULAR ESNAF VE SANATKARLAR ODASI
+          </div>
+        </a>
+
+        <ul class="navbar-menu" id="nav-menu">
+          <li><a href="/" data-link class="active">Ana Sayfa</a></li
+
+===== https://akod.org.tr/api/prices -> 200 835 bayt application/json; charset=utf-8
+{"success":true,"prices":[{"code":"B_T","name":"22 Ayar Altın","price":5878,"currency":"₺","type":"gold"},{"code":"C","name":"Çeyrek Ziynet","price":10173,"currency":"₺","type":"gold"},{"code":"Y","name":"Yarım Ziynet","price":20331,"currency":"₺","type":"gold"},{"code":"T","name":"Tam Ziynet","price":40418,"currency":"₺","type":"gold"},{"code":"A","name":"Cumhuriyet Altını","price":null,"currency":"₺","type":"unknown"},{"code":"İAB","name":"IAB Kapanış","price":6085,"currency":"$","type":"gold"},{"code":"USD","name":"Amerikan Doları","price":50.88,"currency":"₺","type":"currency"},{"code":"EUR","name":"Avrupa Para Birimi","price":55.578,"currency":"₺","type":"currency"},{"code":"GBP","name":"İngiliz Sterlini","price":66.811,"currency":"₺","type":"currency"}],"updatedAt":"2026-11-28T10:41:
+
+===== https://akod.org.tr/api/fiyatlar -> HATA HTTP Error 404: Not Found
+
+===== https://akod.org.tr/api/altin -> HATA HTTP Error 404: Not Found
+
+===== https://akod.org.tr/fiyatlar -> 200 10903 bayt text/html; charset=UTF-8
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <title>AKOD – Antalya Kuyumcular Esnaf ve Sanatkarlar Odası</title>
+  <meta name="description" content="Antalya Kuyumcular Esnaf ve Sanatkarlar Odası resmi web sitesi. Güncel altın fiyatları, haberler ve duyurular.">
+  <meta name="keywords" content="Antalya Kuyumcular Odası, AKOD, kuyumcu, altın fiyatları, Antalya">
+  <link rel="icon" type="image/png" href="/uploads/logo.png">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div class="page-wrapper">
+    <!-- Navbar -->
+    <nav class="navbar" id="navbar">
+      <div class="navbar-
+
+===== https://akod.org.tr/altin-fiyatlari -> 200 10903 bayt text/html; charset=UTF-8
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <title>AKOD – Antalya Kuyumcular Esnaf ve Sanatkarlar Odası</title>
+  <meta name="description" content="Antalya Kuyumcular Esnaf ve Sanatkarlar Odası resmi web sitesi. Güncel altın fiyatları, haberler ve duyurular.">
+  <meta name="keywords" content="Antalya Kuyumcular Odası, AKOD, kuyumcu, altın fiyatları, Antalya">
+  <link rel="icon" type="image/png" href="/uploads/logo.png">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div class="page-wrapper">
+    <!-- Navbar -->
+    <nav class="navbar" id="navbar">
+      <div class="navbar-
+
+===== https://akod.org.tr/api/gold-prices -> HATA HTTP Error 404: Not Found
+
+===== https://canlipiyasalar.haremaltin.com/tmp/altin.json?dil_kodu=tr -> HATA HTTP Error 404: Not Found
+
+===== https://static.altinkaynak.com/public/Gold -> 200 7140 bayt application/json
+[{"Alis":"6.084","Satis":"6.123","Kod":"HH_T","Aciklama":"Has","GuncellenmeZamani":"28.11.2026 13:41:05","IsMobile":true},{"Alis":"6.054","Satis":"6.092","Kod":"CH_T","Aciklama":"Külçe","GuncellenmeZamani":"28.11.2026 13:41:05","IsMobile":true},{"Alis":"302.692","Satis":"310.646","Kod":"GA50","Aciklama":"50 GR 24 Ayar ","GuncellenmeZamani":"28.11.2026 13:41:05","IsMobile":false},{"Alis":"121.077","Satis":"124.453","Kod":"GA20","Aciklama":"20 GR 24 Ayar ","GuncellenmeZamani":"28.11.2026 13:41:05","IsMobile":false},{"Alis":"60.538","Satis":"61.837","Kod":"GA10","Aciklama":"10 GR 24 Ayar ","GuncellenmeZamani":"28.11.2026 13:41:05","IsMobile":false},{"Alis":"605.384","Satis":"621.414","Kod":"GA100","Aciklama":"100 GR 24 Ayar ","GuncellenmeZamani":"28.11.2026 13:41:05","IsMobile":false},{"Alis":"30.269","Satis":"30.982","Kod":"GA5","Aciklama":"5 GR 24 Ayar ","GuncellenmeZamani":"28.11.2026 13:41:05","IsMobile":false},{"Alis":"15.133","Satis":"15.531","Kod":"GA2","Aciklama":"2,5 GR 24 Ayar ","GuncellenmeZamani":"28.11.2026 13:41:05","IsMobile":false},{"Alis":"6.067","Satis":"6.178","Kod":"GA","Aciklama":"Gram Altın ","GuncellenmeZamani":"28.11.2026 13:41:05","IsMobile":true},{"Alis":"40.374","Satis":"43.145","Kod":"PA","Aciklama":"Ata Cumhuriyet","GuncellenmeZamani":"28.11.2026 13:41:05","IsMobile":false},{"Alis":"3.026.922","Satis":"3.098.847","Kod":"GA500","Aciklama":"500 GR 24 Ayar ","GuncellenmeZamani":"28.11.2026 13:41:05","IsMobile":false},{"Alis":"1.513.461","Satis":"1.543.0
+
+===== https://api.genelpara.com/embed/altin.json -> HATA HTTP Error 403: Forbidden
+
+===== https://anlikaltinfiyatlari.com/altin/antalya -> 200 48665 bayt text/html; charset=UTF-8
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="tr" lang="tr">
+<head>
+<meta http-equiv="content-type" content="text/html; charset=utf-8">
+<title>Antalya Altın Fiyatları (AKOD: Antalya Kuyumcular Odası) - ANLIK ALTIN FİYATLARI</title>
+<meta name="Description" content="Antalya altın fiyatları anlık olarak çeşitli kaynaklardan alınan verilerle burada yayınlanmaktadır. Antalya altın piyasasında çeyrek altın, 22 ayar bilezik, ata lira, gram altın, gremse, reşat ve diğer altın çeşitleri AKOD, Kapalıçarşı ve Serbest Piyasa anlık verileri anlikaltinfiyatlari.com'da yer almaktadır.
+
+===== https://www.anlikfiyat.com.tr/altin/antalya -> 200 60169 bayt text/html; charset=UTF-8
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="/favicon.ico" sizes="48x48">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="manifest" href="/site.webmanifest">
+  <meta name="theme-color" content="#2563eb">
+  <!-- Paylaşım görseli: sosyal ağlar SVG desteklemez, 1200x630 PNG -->
+  <meta property="og:image" content="https://www.anlikfiyat.com.tr/og-image.png">
+  <meta property="og:image:width" conte
+
+===== https://finans.truncgil.com/today.json -> 200 7084 bayt application/json
+{"Update_Date":"2026-11-28 13:30:01","USD":{"Alış":"50,7507","Tür":"Döviz","Satış":"50,7842","Değişim":"%0,20"},"EUR":{"Alış":"55,5386","Tür":"Döviz","Satış":"55,5956","Değişim":"%-0,29"},"GBP":{"Alış":"66,4998","Tür":"Döviz","Satış":"66,5704","Değişim":"%-0,08"},"CHF":{"Alış":"60,6703","Tür":"Döviz","Satış":"60,7319","Değişim":"%-0,04"},"CAD":{"Alış":"35,6170","Tür":"Döviz","Satış":"35,6480","Değişim":"%0,21"},"RUB":{"Alış":"0,6176","Tür":"Döviz","Satış":"0,6187","Değişim":"%-0,03"},"AED":{"Alış":"13,8155","Tür":"Döviz","Satış":"13,8343","Değişim":"%0,20"},"AUD":{"Alış":"33,7238","Tür":"Döviz
